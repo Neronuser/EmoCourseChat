@@ -1,7 +1,13 @@
+import os
 import csv
 import numpy as np
+import spacy
+from collections import defaultdict
+
+COURTESY_SENTENCES_WORDS = 9
 
 EMOTION_SCORE_THRESHOLD = 50
+WASSA_THRESHOLD = 0.5
 
 HASHTAG_EMOTION_CORPUS = 'data/raw/emotion/Jan9-2012-tweets-clean.txt'
 CROWDFLOWER_EMOTION_CORPUS = 'data/raw/emotion/text_emotion.csv'
@@ -11,6 +17,16 @@ AFFECTIVETEXT_TRIAL_TEXT = 'data/raw/emotion/AffectiveText.Semeval.2007/Affectiv
 AFFECTIVETEXT_TEST_LABELS = 'data/raw/emotion/AffectiveText.Semeval.2007/AffectiveText.test/affectivetext_test' \
                              '.emotions.gold'
 AFFECTIVETEXT_TEST_TEXT = 'data/raw/emotion/AffectiveText.Semeval.2007/AffectiveText.test/affectivetext_test.xml'
+ELECTORAL_DATA_BATCH1 = 'data/raw/emotion/ElectoralTweetsData/Annotated-US2012-Election-Tweets/Questionnaire2/Batch1' \
+                        '/AnnotatedTweets.txt'
+ELECTORAL_DATA_BATCH2 = 'data/raw/emotion/ElectoralTweetsData/Annotated-US2012-Election-Tweets/Questionnaire2/Batch2' \
+                        '/AnnotatedTweets.txt'
+WASSA_FOLDER = 'data/raw/emotion/Wassa-2017'
+LOVE_LETTERS = 'data/raw/emotion/LoveHateSuicide/love-letters.txt'
+SPUDISK_TRAIN = 'data/raw/emotion/spudisc-emotion-classification-master/train.txt'
+SPUDISK_TEST = 'data/raw/emotion/spudisc-emotion-classification-master/test.txt'
+NRC_LEXICON = 'data/raw/emotion/NRC-Sentiment-Emotion-Lexicons/NRC-Emotion-Lexicon-v0.92/NRC-Emotion-Lexicon' \
+              '-Wordlevel-v0.92.txt'
 
 
 def parse_hashtag_emotion_corpus():
@@ -52,7 +68,7 @@ def parse_affective_text_corpuses():
         http://web.eecs.umich.edu/~mihalcea/downloads/AffectiveText.Semeval.2007.tar.gz.
 
     Returns:
-        ([(str, str)]): Tweets and their emotion labels zipped.
+        ([(str, str)]): News headlines and their top scored emotion labels zipped.
     """
     data = parse_affective_text_corpus(AFFECTIVETEXT_TRIAL_TEXT, AFFECTIVETEXT_TRIAL_LABELS)
     data.extend(parse_affective_text_corpus(AFFECTIVETEXT_TEST_TEXT, AFFECTIVETEXT_TEST_LABELS))
@@ -60,7 +76,7 @@ def parse_affective_text_corpuses():
 
 
 def parse_affective_text_corpus(text_filepath, labels_filepath):
-    """Extract news headlines and emotions from affectivetext dataset
+    """Extract news headlines and emotions from affectivetext dataset.
 
     Args:
         text_filepath (str): Path to affectivetext xml file with ids and texts.
@@ -81,3 +97,128 @@ def parse_affective_text_corpus(text_filepath, labels_filepath):
             text = text_line.split('>', 1)[1].rsplit('<', 1)[0]
             data.append((text, label))
     return data
+
+
+def join_electoral_tweets_data():
+    """ Extract and join 2 batches of data from electoral tweets:
+    http://saifmohammad.com/WebDocs/ElectoralTweetsData.zip
+
+    Returns:
+        ([(str, str)]): Tweets and their emotion labels zipped.
+    """
+    data = parse_electoral_tweets_data(ELECTORAL_DATA_BATCH1)
+    data.extend(parse_electoral_tweets_data(ELECTORAL_DATA_BATCH2))
+    return data
+
+
+def parse_electoral_tweets_data(data_path):
+    """Extract electoral tweets and emotions from the dataset.
+
+    Args:
+        data_path (str): Path to annotated tweets file.
+    Returns:
+        ([(str, str)]): Tweets and their emotion labels zipped.
+    """
+    data = []
+    with open(data_path) as data_file:
+        data_file.__next__()
+        previous_row = ''
+        for line in data_file:
+            line = previous_row + ' ' + line
+            row = line.rstrip('\t\n').split('\t')
+            if len(row) < 29:
+                # Some rows in the data file are improperly newlined
+                previous_row = line
+                continue
+            else:
+                previous_row = ''
+            tweet = row[13]
+            emotion = row[15]
+            data.append((tweet, emotion))
+    return data
+
+
+def parse_wassa_data():
+    """Extract tweets and their emotions from WASSA-2017 dataset:
+    http://saifmohammad.com/WebPages/EmotionIntensity-SharedTask.html
+    Filter by WASSA_THRESHOLD intensity.
+
+    Returns:
+        ([(str, str)]): Tweets and emotion labels zipped.
+    """
+    data = []
+    for filename in os.listdir(WASSA_FOLDER):
+        if not filename.startswith('.'):
+            with open(WASSA_FOLDER + '/' + filename) as data_file:
+                reader = csv.reader(data_file, delimiter='\t')
+                for row in reader:
+                    if float(row[3]) > WASSA_THRESHOLD:
+                        data.append((row[1], row[2]))
+    return data
+
+
+def parse_love_letters():
+    """Extract love sentences from love letter collection from http://saifmohammad.com/WebDocs/LoveHateSuicide.tar.gz
+
+    Returns:
+        ([(str, str)]): Sentence, 'love' pairs.
+    """
+    data = []
+    with open(LOVE_LETTERS) as letters_file:
+        nlp = spacy.load('en')
+        for line in letters_file:
+            doc = nlp(line)
+            if len(doc) <= COURTESY_SENTENCES_WORDS:
+                continue
+            for sentence in doc.sents:
+                data.append((sentence.text, 'love'))
+    return data
+
+
+def join_spudisc_datasets():
+    """Extract and join test/train imdb review parts annotated with emotions from
+    https://github.com/NLeSC/spudisc-emotion-classification.
+
+    Returns:
+        ([(str, str)]): Review part, emotion.
+    """
+    data = parse_spudisc_dataset(SPUDISK_TRAIN)
+    data.extend(parse_spudisc_dataset(SPUDISK_TEST))
+    return data
+
+
+def parse_spudisc_dataset(data_path):
+    """Extract imdb review parts annotated with emotions
+
+    Args:
+        data_path (str): Path to annotated review file.
+    Returns:
+        ([(str, str)]): Review part, emotion.
+    """
+    data = []
+    with open(data_path) as data_file:
+        for line in data_file:
+            sentence, label = line.rsplit(maxsplit=1)
+            if label == 'None':
+                continue
+            new_label = label.split('_')[0]
+            data.append((sentence, new_label))
+    return data
+
+
+def parse_nrc_lexicon():
+    """Extract National Resource Council Canada emotion lexicon from http://saifmohammad.com/WebPages/lexicons.html
+
+    Returns:
+        {str: [str]} A defaultdict of emotion to list of associated words
+    """
+    emotion2words = defaultdict(list)
+    with open(NRC_LEXICON) as lexicon_file:
+        lexicon_file.__next__()
+        for line in lexicon_file:
+            word, emotion, associated = line.split()
+            if associated == '1':
+                emotion2words[emotion].append(word)
+    return emotion2words
+
+# TODO maybe add StanceDataset

@@ -118,3 +118,4 @@ ssl/
 # project specific
 /data/
 /models/
+/man/
