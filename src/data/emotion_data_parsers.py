@@ -15,7 +15,7 @@ AFFECTIVETEXT_TRIAL_LABELS = 'data/raw/emotion/AffectiveText.Semeval.2007/Affect
                              '.emotions.gold'
 AFFECTIVETEXT_TRIAL_TEXT = 'data/raw/emotion/AffectiveText.Semeval.2007/AffectiveText.trial/affectivetext_trial.xml'
 AFFECTIVETEXT_TEST_LABELS = 'data/raw/emotion/AffectiveText.Semeval.2007/AffectiveText.test/affectivetext_test' \
-                             '.emotions.gold'
+                            '.emotions.gold'
 AFFECTIVETEXT_TEST_TEXT = 'data/raw/emotion/AffectiveText.Semeval.2007/AffectiveText.test/affectivetext_test.xml'
 ELECTORAL_DATA_BATCH1 = 'data/raw/emotion/ElectoralTweetsData/Annotated-US2012-Election-Tweets/Questionnaire2/Batch1' \
                         '/AnnotatedTweets.txt'
@@ -27,6 +27,7 @@ SPUDISK_TRAIN = 'data/raw/emotion/spudisc-emotion-classification-master/train.tx
 SPUDISK_TEST = 'data/raw/emotion/spudisc-emotion-classification-master/test.txt'
 NRC_LEXICON = 'data/raw/emotion/NRC-Sentiment-Emotion-Lexicons/NRC-Emotion-Lexicon-v0.92/NRC-Emotion-Lexicon' \
               '-Wordlevel-v0.92.txt'
+FULL_DATASET = 'data/processed/emotions_initial.csv'
 
 
 def parse_hashtag_emotion_corpus():
@@ -221,4 +222,31 @@ def parse_nrc_lexicon():
                 emotion2words[emotion].append(word)
     return emotion2words
 
+
 # TODO maybe add StanceDataset
+
+def write_data(writer, data, name):
+    """Write a particular dataset into the file
+
+    Args:
+        writer (csv.Writer): writer handle of output file
+        data ([(str, str)]: text, label tuples
+        name (str): dataset identification
+    """
+    for text, label in data:
+        writer.writerow([text, label, name])
+
+
+if __name__ == '__main__':
+    extractors = [parse_hashtag_emotion_corpus, parse_crowdflower_emotion_corpus, parse_affective_text_corpuses,
+                  join_electoral_tweets_data, parse_wassa_data, parse_love_letters, join_spudisc_datasets]
+    names = ["hashtag_emotion", "crowdflower", "affective_text", "electoral_tweets", "wassa", "love_letters", "spudisc"]
+    with open(FULL_DATASET, 'w') as full_data_file:
+        writer = csv.writer(full_data_file, quoting=csv.QUOTE_MINIMAL)
+        for extractor_function, name in zip(extractors, names):
+            data = extractor_function()
+            write_data(writer, data, name)
+        emotion2words = parse_nrc_lexicon()
+        for emotion, word_list in emotion2words.items():
+            for word in word_list:
+                writer.writerow((word, emotion, "nrc_lexicon"))
