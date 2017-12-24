@@ -119,3 +119,14 @@ ssl/
 /data/
 /models/
 /man/
+
+# jupyter/spacy specific
+/doc/
+/etc/
+/libexec/
+/mkspecs/
+/phrasebooks/
+/plugins/
+/qml/
+/resources/
+/translations/
