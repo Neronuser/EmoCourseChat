@@ -4,7 +4,7 @@ Emotional neural conversational model with memory
 
 ## Getting Started
 
-python -m spacy download en
+python -m spacy download en_core_web_lg
 
 ### Prerequisites
 
