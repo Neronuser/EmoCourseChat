@@ -4,8 +4,19 @@ Emotional neural conversational model with memory
 
 ## Getting Started
 
+### Spacy's large English model
+```
 python -m spacy download en_core_web_lg
+```
 
+### Fasttext
+```
+wget https://github.com/facebookresearch/fastText/archive/v0.1.0.zip
+unzip v0.1.0.zip
+rm v0.1.0.zip
+cd fastText-0.1.0
+make
+```
 ### Prerequisites
 
 What things you need to install the software and how to install them

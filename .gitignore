@@ -130,3 +130,6 @@ ssl/
 /qml/
 /resources/
 /translations/
+
+/fastText-0.1.0/
+
