@@ -25,3 +25,7 @@ def preprocess(text):
     separated_punctuation_text = no_emojis_text.translate(
         str.maketrans({key: " {0} ".format(key) for key in string.punctuation}))
     return separated_punctuation_text
+
+
+def split_list_pairs(l):
+    return [[l[i], l[i + 1]] for i in range(len(l) - 1)]

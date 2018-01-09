@@ -1,16 +1,15 @@
 import csv
 import subprocess
 
+import textacy
 from textacy.text_utils import detect_language
 
-import textacy
 from src.utils import preprocess
-
 
 if __name__ == '__main__':
     EMOTION_DATAPATH = 'data/processed/emotions_full.csv'
     FASTTEXT_FULL_FILE = 'data/processed/fasttext_full.txt'
-    MODEL_PATH = 'models/fasttext/model'
+    MODEL_PATH = 'models/emotion_classification/fasttext/model'
     label_prefix = '__label__'
     texts = []
     labels = []
@@ -38,6 +37,6 @@ if __name__ == '__main__':
     lr_update_rate = 100000
     neg = 50
     subprocess.call(['./fastText-0.1.0/fasttext', 'supervised', '-input', FASTTEXT_FULL_FILE,
-                         '-output', MODEL_PATH, '-dim', str(dim), '-lr', str(lr), '-epoch', str(epoch),
-                         '-label', label_prefix, '-wordNgrams', str(word_ngrams), '-minCount', str(min_count),
-                         '-thread', str(thread), '-lrUpdateRate', str(lr_update_rate), '-neg', str(neg)])
+                     '-output', MODEL_PATH, '-dim', str(dim), '-lr', str(lr), '-epoch', str(epoch),
+                     '-label', label_prefix, '-wordNgrams', str(word_ngrams), '-minCount', str(min_count),
+                     '-thread', str(thread), '-lrUpdateRate', str(lr_update_rate), '-neg', str(neg)])

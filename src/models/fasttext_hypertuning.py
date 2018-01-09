@@ -11,7 +11,6 @@ from textacy.text_utils import detect_language
 
 from src.utils import preprocess
 
-
 if __name__ == '__main__':
     EMOTION_DATAPATH = 'data/processed/emotions_full.csv'
     raw_data = []
@@ -36,7 +35,7 @@ if __name__ == '__main__':
     FASTTEXT_INPUT_FILE = 'data/processed/fasttext_input.txt'
     FASTTEXT_TEST_FILE = 'data/processed/fasttext_test.txt'
     FASTTEXT_FULL_FILE = 'data/processed/fasttext_full.txt'
-    MODEL_PATH = 'models/fasttext/model'
+    MODEL_PATH = 'models/emotion_classification/fasttext/model'
     label_prefix = '__label__'
     with open(FASTTEXT_INPUT_FILE, 'w') as input_file:
         for x, y in zip(x_train, y_train):

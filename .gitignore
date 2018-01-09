@@ -133,3 +133,7 @@ ssl/
 
 /fastText-0.1.0/
 
+config.ini
+
+notebooks/seq2seq_translation_tutorial.ipynb
+notebooks/data/

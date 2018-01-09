@@ -1,8 +1,9 @@
-import os
 import csv
+import os
+from collections import defaultdict
+
 import numpy as np
 import spacy
-from collections import defaultdict
 
 COURTESY_SENTENCES_WORDS = 9
 
@@ -39,7 +40,6 @@ def parse_hashtag_emotion_corpus():
     data = []
     with open(HASHTAG_EMOTION_CORPUS) as corpus:
         for line in corpus:
-            # TODO filter non-English
             _, sentence_label_str = line.split(':', 1)
             preprocessed_sentence_label_str = sentence_label_str.replace('\t', '').replace('\n', '')
             sentence, label = preprocessed_sentence_label_str.rsplit('::', 1)
@@ -77,7 +77,7 @@ def parse_affective_text_corpuses():
 
 
 def parse_affective_text_corpus(text_filepath, labels_filepath):
-    """Extract news headlines and emotions from affectivetext dataset.
+    """Extract news headlines and emotions from affectivetext dataset. http://web.eecs.umich.edu/~mihalcea/downloads.html
 
     Args:
         text_filepath (str): Path to affectivetext xml file with ids and texts.
