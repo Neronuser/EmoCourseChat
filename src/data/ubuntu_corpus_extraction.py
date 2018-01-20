@@ -8,7 +8,6 @@ VALIDATION_FILE = 'data/raw/dialogue/ubuntu-ranking-dataset-creator/src/valid.cs
 OUTPUT_FILE = 'data/processed/dialogue/ubuntu.csv'
 
 
-
 def parse_ubuntu_file(filename, label_column='Utterance'):
     train_df = pd.read_csv(filename, sep=',')
     train_df['Context'] = train_df['Context'].str.replace('__eou__', '')

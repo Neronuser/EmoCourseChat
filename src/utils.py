@@ -1,7 +1,10 @@
+import configparser
 import re
 import string
 
 from textacy.preprocess import preprocess_text
+
+CONFIG_PATH = 'config.ini'
 
 EMOJI_PATTERN = re.compile(
     u"(\ud83d[\ude00-\ude4f])|"  # emoticons
@@ -29,3 +32,9 @@ def preprocess(text):
 
 def split_list_pairs(l):
     return [[l[i], l[i + 1]] for i in range(len(l) - 1)]
+
+
+def parse_config(section):
+    config = configparser.ConfigParser()
+    config.read(CONFIG_PATH)
+    return config[section]
