@@ -137,3 +137,5 @@ config.ini
 
 notebooks/seq2seq_translation_tutorial.ipynb
 notebooks/data/
+
+logs/

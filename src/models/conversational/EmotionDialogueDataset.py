@@ -1,10 +1,11 @@
 import csv
+import logging
 import os
 
 import torch
 from torch.utils.data import Dataset
 
-from src.models.conversational.utils import Vocabulary, EOS_INDEX
+from src.models.conversational.utils import Vocabulary, EOS_INDEX, APP_NAME
 from src.utils import preprocess
 
 
@@ -17,25 +18,26 @@ class EmotionDialogueDataset(Dataset):
         self.max_words = max_words
         self.transform = transform
         self.corpus_name = corpus.split('/')[-1].split('.')[0]
+        self.logger = logging.getLogger(APP_NAME + '.Dataset')
         try:
-            print("Start loading training data ...")
+            logging.info("Start loading training data ...")
             self.vocabulary = torch.load(os.path.join(save_dir, 'training_data', self.corpus_name, 'vocabulary.tar'))
             self.emotion_vocabulary = torch.load(
                 os.path.join(save_dir, 'training_data', self.corpus_name, 'emotion_vocabulary.tar'))
             self.triplets = torch.load(os.path.join(save_dir, 'training_data', self.corpus_name, 'triplets.tar'))
         except FileNotFoundError:
-            print("Saved data not found, start preparing training data ...")
+            self.logger.info("Saved data not found, start preparing training data ...")
             self.vocabulary, self.emotion_vocabulary, self.triplets = self.prepare_data()
 
     def read_data(self):
-        print("Reading lines...")
+        self.logger.info("Reading lines...")
         triplets = []
         vocabulary = Vocabulary(self.corpus_name)
         emotion_vocabulary = Vocabulary(self.corpus_name + '_emotion')
 
         with open(self.corpus) as corpus_handle:
             reader = csv.reader(corpus_handle)
-            for utterance, response, emotion in reader:
+            for line_number, (utterance, response, emotion) in enumerate(reader):
                 prep_utterance = preprocess(utterance)
                 split_utterance = prep_utterance.split(' ')
                 if len(split_utterance) >= self.max_length:
@@ -55,6 +57,10 @@ class EmotionDialogueDataset(Dataset):
                 emotion_vocabulary.add_word(emotion)
 
                 triplets.append((split_utterance, split_response, emotion))
+
+                if line_number == 1000000:
+                    break
+
         vocabulary.prune(self.max_words)
         encoded_triplets = []
         for utterance, response, emotion in triplets:
@@ -73,8 +79,8 @@ class EmotionDialogueDataset(Dataset):
 
     def prepare_data(self):
         vocabulary, emotion_vocabulary, triplets = self.read_data()
-        print("Read {!s} sentence triplets".format(len(triplets)))
-        print("Counted words:", vocabulary.n_words)
+        self.logger.info("Read {!s} sentence triplets".format(len(triplets)))
+        self.logger.info("Counted words:", vocabulary.n_words)
         directory = os.path.join(self.save_dir, 'training_data', self.corpus_name)
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -91,21 +97,3 @@ class EmotionDialogueDataset(Dataset):
         if self.transform:
             sample = self.transform(sample)
         return sample
-
-
-class PrepareForSeq2Seq(object):
-    def __init__(self, max_length, reverse):
-        self.max_length = max_length
-        self.reverse = reverse
-
-    def __call__(self, sample):
-        if self.reverse:
-            sample = (sample[1], sample[0])
-        pair_batch.sort(key=lambda x: len(x[0].split(" ")), reverse=True)
-        input_batch, output_batch = [], []
-        for i in range(len(pair_batch)):
-            input_batch.append(pair_batch[i][0])
-            output_batch.append(pair_batch[i][1])
-        input, lengths = input_var(input_batch, voc)
-        output, mask, max_target_len = output_var(output_batch, voc)
-        return input, lengths, output, mask, max_target_len

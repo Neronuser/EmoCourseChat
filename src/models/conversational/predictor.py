@@ -1,0 +1,40 @@
+import torch
+from torch.autograd import Variable
+
+
+class Predictor(object):
+
+    def __init__(self, model, vocabulary):
+        """
+        Predictor class to evaluate for a given model.
+        Args:
+            model (seq2seq.models): trained model. This can be loaded from a checkpoint
+                using `seq2seq.util.checkpoint.load`
+            vocabulary (seq2seq.dataset.vocabulary.Vocabulary): source sequence vocabulary
+        """
+        if torch.cuda.is_available():
+            self.model = model.cuda()
+        else:
+            self.model = model.cpu()
+        self.model.eval()
+        self.vocabulary = vocabulary
+
+    def predict(self, src_seq):
+        """ Make prediction given `src_seq` as input.
+        Args:
+            src_seq (list): list of tokens in source language
+        Returns:
+            tgt_seq (list): list of tokens in target language as predicted
+            by the pre-trained model
+        """
+        src_id_seq = Variable(torch.LongTensor([self.vocabulary.word2index[tok] for tok in src_seq]),
+                              volatile=True).view(1, -1)
+        if torch.cuda.is_available():
+            src_id_seq = src_id_seq.cuda()
+
+        softmax_list, _, other = self.model(src_id_seq, [len(src_seq)])
+        length = other['length'][0]
+
+        tgt_id_seq = [other['sequence'][di][0].data[0] for di in range(length)]
+        tgt_seq = [self.vocabulary.index2word[tok] for tok in tgt_id_seq]
+        return tgt_seq

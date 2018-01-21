@@ -5,6 +5,7 @@ import string
 from textacy.preprocess import preprocess_text
 
 CONFIG_PATH = 'config.ini'
+LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
 
 EMOJI_PATTERN = re.compile(
     u"(\ud83d[\ude00-\ude4f])|"  # emoticons
@@ -35,6 +36,6 @@ def split_list_pairs(l):
 
 
 def parse_config(section):
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(allow_no_value=True)
     config.read(CONFIG_PATH)
     return config[section]

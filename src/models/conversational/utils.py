@@ -2,6 +2,7 @@ import itertools
 
 import numpy as np
 
+APP_NAME = "training_app"
 SOS_INDEX = 0
 EOS_INDEX = 1
 
