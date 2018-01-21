@@ -61,7 +61,8 @@ class Trainer(object):
 
         device = None if torch.cuda.is_available() else -1
         batch_iterator = torchtext.data.BucketIterator(data, batch_size=self.batch_size, repeat=False,
-                                                       sort_key=lambda x: torchtext.data.interleave_keys(x[0], x[1]),
+                                                       sort_key=lambda x: torchtext.data.interleave_keys(len(x[0]),
+                                                                                                         len(x[1])),
                                                        shuffle=True, device=device, sort=False, sort_within_batch=True)
 
         steps_per_epoch = len(batch_iterator)
@@ -129,7 +130,7 @@ class Trainer(object):
 
     def train(self, model, data, num_epochs=5,
               resume=False, dev_data=None,
-              optimizer=None, teacher_forcing_ratio=0):
+              optimizer=None, teacher_forcing_ratio=0, learning_rate=0.01):
         """ Run training for a given model.
         Args:
             model (seq2seq.models): model to run training on, if `resume=True`, it would be
@@ -164,7 +165,7 @@ class Trainer(object):
             start_epoch = 1
             step = 0
             if optimizer is None:
-                optimizer = Optimizer(optim.Adam(model.parameters()), max_grad_norm=5)
+                optimizer = Optimizer(optim.Adam(model.parameters(), lr=learning_rate), max_grad_norm=5)
             self.optimizer = optimizer
 
         self.logger.info("Optimizer: %s, Scheduler: %s" % (self.optimizer.optimizer, self.optimizer.scheduler))

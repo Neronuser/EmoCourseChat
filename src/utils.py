@@ -16,6 +16,7 @@ EMOJI_PATTERN = re.compile(
     "+", flags=re.UNICODE)
 MENTIONS_PATTERN = re.compile(u"@[a-z]+")
 HASHTAGS_PATTERN = re.compile(u"#[a-z]+")
+MULTI_SPACES = re.compile(u" +")
 
 
 def preprocess(text):
@@ -28,7 +29,8 @@ def preprocess(text):
     no_emojis_text = re.sub(EMOJI_PATTERN, u"", no_hashtags_text)
     separated_punctuation_text = no_emojis_text.translate(
         str.maketrans({key: " {0} ".format(key) for key in string.punctuation}))
-    return separated_punctuation_text
+    no_multi_spaces_text = re.sub(MULTI_SPACES, u" ", separated_punctuation_text)
+    return no_multi_spaces_text.strip()
 
 
 def split_list_pairs(l):

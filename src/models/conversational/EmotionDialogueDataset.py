@@ -5,7 +5,7 @@ import os
 import torch
 from torch.utils.data import Dataset
 
-from src.models.conversational.utils import Vocabulary, EOS_INDEX, APP_NAME
+from src.models.conversational.utils import Vocabulary, EOS_INDEX, APP_NAME, SOS_INDEX
 from src.utils import preprocess
 
 
@@ -32,7 +32,7 @@ class EmotionDialogueDataset(Dataset):
     def read_data(self):
         self.logger.info("Reading lines...")
         triplets = []
-        vocabulary = Vocabulary(self.corpus_name)
+        vocabulary = Vocabulary(self.corpus_name, start_end_tokens=True)
         emotion_vocabulary = Vocabulary(self.corpus_name + '_emotion')
 
         with open(self.corpus) as corpus_handle:
@@ -58,20 +58,22 @@ class EmotionDialogueDataset(Dataset):
 
                 triplets.append((split_utterance, split_response, emotion))
 
-                if line_number == 1000000:
+                if line_number == 100000:
                     break
-
+        self.logger.info("Full vocabulary size: %d, pruning to %d" % (vocabulary.n_words, self.max_words))
         vocabulary.prune(self.max_words)
+        self.logger.info("Encoding training data")
         encoded_triplets = []
         for utterance, response, emotion in triplets:
             encoded_utterance = vocabulary.encode(utterance)
             if not encoded_utterance:
                 continue
-            encoded_utterance.append(EOS_INDEX)
+            # encoded_utterance.append(EOS_INDEX)
 
             encoded_response = vocabulary.encode(response)
             if not encoded_response:
                 continue
+            encoded_response = [SOS_INDEX] + encoded_response
             encoded_response.append(EOS_INDEX)
 
             encoded_triplets.append((encoded_utterance, encoded_response, emotion_vocabulary.encode(emotion)))
@@ -80,7 +82,7 @@ class EmotionDialogueDataset(Dataset):
     def prepare_data(self):
         vocabulary, emotion_vocabulary, triplets = self.read_data()
         self.logger.info("Read {!s} sentence triplets".format(len(triplets)))
-        self.logger.info("Counted words:", vocabulary.n_words)
+        self.logger.info("Counted words: %d" % vocabulary.n_words)
         directory = os.path.join(self.save_dir, 'training_data', self.corpus_name)
         if not os.path.exists(directory):
             os.makedirs(directory)

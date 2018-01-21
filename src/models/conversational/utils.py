@@ -8,12 +8,18 @@ EOS_INDEX = 1
 
 
 class Vocabulary:
-    def __init__(self, name):
+    def __init__(self, name, start_end_tokens=False):
         self.name = name
-        self.word2index = {"SOS": SOS_INDEX, "EOS": EOS_INDEX}
-        self.index2count = []
-        self.index2word = ["SOS", "EOS"]
-        self.n_words = 2  # Count SOS and EOS
+        if start_end_tokens:
+            self.word2index = {"SOS": SOS_INDEX, "EOS": EOS_INDEX}
+            self.index2count = [0, 0]
+            self.index2word = ["SOS", "EOS"]
+            self.n_words = 2  # Count SOS and EOS
+        else:
+            self.word2index = {}
+            self.index2count = []
+            self.index2word = []
+            self.n_words = 0
 
     def add_word(self, word):
         if word not in self.word2index:
@@ -24,17 +30,15 @@ class Vocabulary:
         else:
             self.index2count[self.word2index[word]] += 1
 
-    # TODO: test
     def prune(self, max_words):
         self.index2word = np.array(self.index2word)
         sort_indices = np.argsort(self.index2count)
-        top_word_indices = self.index2word[sort_indices][-max_words+2:]
+        top_words = self.index2word[sort_indices][-max_words+2:]
         index2word = np.zeros(max_words, dtype=np.str)
         word2index = {"SOS": SOS_INDEX, "EOS": EOS_INDEX}
         index2word[SOS_INDEX] = 'SOS'
         index2word[EOS_INDEX] = 'EOS'
-        for i, word_i in enumerate(top_word_indices):
-            word = self.index2word[word_i]
+        for i, word in enumerate(top_words):
             word2index[word] = 2 + i
             index2word[2 + i] = word
         self.index2word = index2word

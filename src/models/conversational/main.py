@@ -6,7 +6,7 @@ import torch
 from src.models.conversational.EmotionDialogueDataset import EmotionDialogueDataset
 from src.models.conversational.checkpoint import Checkpoint
 from src.models.conversational.loss import Perplexity
-from src.models.conversational.model import EncoderRNN, DecoderRNN, Seq2seq
+from src.models.conversational.model import EncoderRNN, DecoderRNN, Seq2seq, TopKDecoder
 from src.models.conversational.predictor import Predictor
 from src.models.conversational.trainer import Trainer
 from src.models.conversational.utils import EOS_INDEX, SOS_INDEX
@@ -18,7 +18,7 @@ def run(config):
     resume = config.getboolean('Resume')
     train_path = config["Train"]
     epochs = config.getint('Epochs')
-    teacher_forcing = config.getfloat('TeacherForcing')
+    teacher_forcing = config.getfloat('TeacherForcingRatio')
     print_every = config.getint('Print')
     save_every = config.getfloat('SaveEvery')
     save_dir = config['SavePath']
@@ -61,11 +61,11 @@ def run(config):
             # Initialize model
             bidirectional = True
             encoder = EncoderRNN(dataset.vocabulary.n_words, max_length, hidden_size,
-                                 bidirectional=bidirectional, variable_lengths=True)
+                                 bidirectional=bidirectional, variable_lengths=True, n_layers=n_layers)
             decoder = DecoderRNN(dataset.vocabulary.n_words, max_length,
                                  hidden_size * 2 if bidirectional else hidden_size,
                                  dropout_p=0.2, use_attention=True, bidirectional=bidirectional,
-                                 eos_id=EOS_INDEX, sos_id=SOS_INDEX)
+                                 eos_id=EOS_INDEX, sos_id=SOS_INDEX, n_layers=n_layers)
             seq2seq = Seq2seq(encoder, decoder)
             if torch.cuda.is_available():
                 seq2seq.cuda()
@@ -89,9 +89,11 @@ def run(config):
                           num_epochs=epochs, dev_data=None,
                           optimizer=optimizer,
                           teacher_forcing_ratio=teacher_forcing,
-                          resume=resume)
+                          resume=resume, learning_rate=learning_rate)
 
-    predictor = Predictor(seq2seq, dataset.vocabulary)
+    # predictor = Predictor(seq2seq, dataset.vocabulary)
+    beam_search = Seq2seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, beam_size))
+    predictor = Predictor(beam_search, dataset.vocabulary)
 
     while True:
         seq_str = input("Type in a source sequence:")

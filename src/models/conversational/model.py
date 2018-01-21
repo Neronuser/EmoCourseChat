@@ -457,7 +457,7 @@ class TopKDecoder(torch.nn.Module):
           each sequence is a list of token IDs.  It is used for teacher forcing when provided. (default is `None`)
         - **encoder_hidden** (batch, seq_len, hidden_size): tensor containing the features in the hidden state `h` of
           encoder. Used as the initial hidden state of the decoder.
-        - **encoder_outputs** (batch, seq_len, hidden_size): tensor with containing the outputs of the encoder.
+        - **encoder_outputs** (batch, seq_len, hidden_size): tensor containing the outputs of the encoder.
           Used for attention mechanism (default is `None`).
         - **function** (torch.nn.Module): A function used to generate symbols from RNN hidden state
           (default is `torch.nn.functional.log_softmax`).
