@@ -34,7 +34,7 @@ class Vocabulary:
         self.index2word = np.array(self.index2word)
         sort_indices = np.argsort(self.index2count)
         top_words = self.index2word[sort_indices][-max_words+2:]
-        index2word = np.zeros(max_words, dtype=np.str)
+        index2word = np.empty(max_words, dtype='U14')
         word2index = {"SOS": SOS_INDEX, "EOS": EOS_INDEX}
         index2word[SOS_INDEX] = 'SOS'
         index2word[EOS_INDEX] = 'EOS'

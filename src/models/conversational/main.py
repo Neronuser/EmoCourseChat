@@ -27,7 +27,6 @@ def run(config):
     hidden_size = config.getint('Hidden')
     batch_size = config.getint('Batch_size')
     beam_size = config.getint('Beam')
-    input = config.getboolean('Input')
     max_length = config.getint('MaxLength')
     max_words = config.getint('MaxWords')
 
@@ -91,7 +90,6 @@ def run(config):
                           teacher_forcing_ratio=teacher_forcing,
                           resume=resume, learning_rate=learning_rate)
 
-    # predictor = Predictor(seq2seq, dataset.vocabulary)
     beam_search = Seq2seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, beam_size))
     predictor = Predictor(beam_search, dataset.vocabulary)
 

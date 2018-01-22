@@ -5,11 +5,14 @@ import random
 import torch
 import torchtext
 from torch import optim
+from tqdm import tqdm
 
 from src.models.conversational.checkpoint import Checkpoint
 from src.models.conversational.evaluator import Evaluator
 from src.models.conversational.loss import NLLLoss
+from src.models.conversational.model import Seq2seq, TopKDecoder
 from src.models.conversational.optimizer import Optimizer
+from src.models.conversational.predictor import Predictor
 from src.models.conversational.utils import APP_NAME
 
 
@@ -60,9 +63,9 @@ class Trainer(object):
         epoch_loss_total = 0  # Reset every epoch
 
         device = None if torch.cuda.is_available() else -1
+        # sort_key=lambda x: torchtext.data.interleave_keys(len(x.src), len(x.trg)),
         batch_iterator = torchtext.data.BucketIterator(data, batch_size=self.batch_size, repeat=False,
-                                                       sort_key=lambda x: torchtext.data.interleave_keys(len(x[0]),
-                                                                                                         len(x[1])),
+                                                       sort_key=lambda x: len(x.src),
                                                        shuffle=True, device=device, sort=False, sort_within_batch=True)
 
         steps_per_epoch = len(batch_iterator)
@@ -71,7 +74,7 @@ class Trainer(object):
         step = start_step
         step_elapsed = 0
         for epoch in range(start_epoch, n_epochs + 1):
-            self.logger.debug("Epoch: %d, Step: %d" % (epoch, step))
+            self.logger.info("Epoch: %d, Step: %d" % (epoch, step))
 
             batch_generator = batch_iterator.__iter__()
             # consuming seen batches from previous training
@@ -83,11 +86,11 @@ class Trainer(object):
                 step += 1
                 step_elapsed += 1
 
-                # input_variables, input_lengths = getattr(batch, seq2seq.src_field_name)
-                # target_variables = getattr(batch, seq2seq.tgt_field_name)
+                input_variables, input_lengths = getattr(batch, 'src')
+                target_variables = getattr(batch, 'trg')
 
                 # TODO Probably won't work
-                input_variables, input_lengths, target_variables = zip(*batch)
+                # input_variables, input_lengths, target_variables = zip(*batch)
 
                 loss = self._train_batch(input_variables, input_lengths.tolist(), target_variables, model,
                                          teacher_forcing_ratio)
@@ -99,11 +102,15 @@ class Trainer(object):
                 if step % self.print_every == 0 and step_elapsed > self.print_every:
                     print_loss_avg = print_loss_total / self.print_every
                     print_loss_total = 0
-                    log_msg = 'Progress: %d%%, Train %s: %.4f' % (
+                    log_msg = 'Progress: %.2f%%, Train %s: %.4f' % (
                         step / total_steps * 100,
                         self.loss.name,
                         print_loss_avg)
                     self.logger.info(log_msg)
+                    beam_search = Seq2seq(model.encoder, TopKDecoder(model.decoder, 20))
+                    predictor = Predictor(beam_search, data.vocabulary)
+                    seq = "how are you ?".split()
+                    self.logger.info(predictor.predict(seq))
 
                 # Checkpoint
                 if step % self.checkpoint_every == 0 or step == total_steps:

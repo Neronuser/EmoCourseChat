@@ -3,15 +3,16 @@ import logging
 import os
 
 import torch
-from torch.utils.data import Dataset
+from torchtext import data
 
+from src.models.conversational.fields import EncodedSentenceField
 from src.models.conversational.utils import Vocabulary, EOS_INDEX, APP_NAME, SOS_INDEX
 from src.utils import preprocess
 
 
-class EmotionDialogueDataset(Dataset):
+class EmotionDialogueDataset(data.Dataset):
 
-    def __init__(self, corpus, save_dir, max_length, max_words, transform=None):
+    def __init__(self, corpus, save_dir, max_length, max_words, transform=None, **kwargs):
         self.corpus = corpus
         self.save_dir = save_dir
         self.max_length = max_length
@@ -28,6 +29,16 @@ class EmotionDialogueDataset(Dataset):
         except FileNotFoundError:
             self.logger.info("Saved data not found, start preparing training data ...")
             self.vocabulary, self.emotion_vocabulary, self.triplets = self.prepare_data()
+
+        fields = [('src', EncodedSentenceField(sequential=True, eos_token=EOS_INDEX, include_lengths=True, batch_first=True)),
+                  ('trg', EncodedSentenceField(sequential=True, eos_token=EOS_INDEX, batch_first=True)),
+                  # ('emo', data.Field(sequential=False, use_vocab=False))]
+                  ('emo', data.RawField())]
+
+        examples = []
+        for src_line, trg_line, emotion in self.triplets:
+            examples.append(data.Example.fromlist([src_line, trg_line, emotion], fields))
+        super(EmotionDialogueDataset, self).__init__(examples, fields, **kwargs)
 
     def read_data(self):
         self.logger.info("Reading lines...")
@@ -76,7 +87,7 @@ class EmotionDialogueDataset(Dataset):
             encoded_response = [SOS_INDEX] + encoded_response
             encoded_response.append(EOS_INDEX)
 
-            encoded_triplets.append((encoded_utterance, encoded_response, emotion_vocabulary.encode(emotion)))
+            encoded_triplets.append((encoded_utterance, encoded_response, emotion_vocabulary.word2index[emotion]))
         return vocabulary, emotion_vocabulary, encoded_triplets
 
     def prepare_data(self):
@@ -92,10 +103,10 @@ class EmotionDialogueDataset(Dataset):
         return vocabulary, emotion_vocabulary, triplets
 
     def __len__(self):
-        return len(self.triplets)
+        return len(self.examples)
 
     def __getitem__(self, idx):
-        sample = self.triplets[idx]
+        sample = self.examples[idx]
         if self.transform:
             sample = self.transform(sample)
         return sample
