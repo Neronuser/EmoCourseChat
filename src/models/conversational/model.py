@@ -494,7 +494,10 @@ class TopKDecoder(torch.nn.Module):
         inputs, batch_size, max_length = self.rnn._validate_args(inputs, encoder_hidden, encoder_outputs,
                                                                  function, teacher_forcing_ratio)
 
-        self.pos_index = Variable(torch.LongTensor(range(batch_size)) * self.k).view(-1, 1)
+        pos_index = torch.LongTensor(range(batch_size)) * self.k
+        if torch.cuda.is_available():
+            pos_index = pos_index.cuda()
+        self.pos_index = Variable(pos_index).view(-1, 1)
 
         # Inflate the initial hidden states to be of size: b*k x h
         encoder_hidden = self.rnn._init_state(encoder_hidden)
@@ -517,10 +520,15 @@ class TopKDecoder(torch.nn.Module):
         sequence_scores = torch.Tensor(batch_size * self.k, 1)
         sequence_scores.fill_(-float('Inf'))
         sequence_scores.index_fill_(0, torch.LongTensor([i * self.k for i in range(0, batch_size)]), 0.0)
+        if torch.cuda.is_available():
+            sequence_scores = sequence_scores.cuda()
         sequence_scores = Variable(sequence_scores)
 
         # Initialize the input vector
-        input_var = Variable(torch.transpose(torch.LongTensor([[self.SOS] * batch_size * self.k]), 0, 1))
+        input_seq = torch.transpose(torch.LongTensor([[self.SOS] * batch_size * self.k]), 0, 1)
+        if torch.cuda.is_available():
+            input_seq = input_seq.cuda()
+        input_var = Variable(input_seq)
 
         # Store decisions for backtracking
         stored_outputs = list()
@@ -724,7 +732,10 @@ class TopKDecoder(torch.nn.Module):
             h_n = tuple([h.index_select(1, re_sorted_idx.data).view(-1, b, self.k, hidden_size) for h in h_n])
         else:
             h_t = [step.index_select(1, re_sorted_idx).view(-1, b, self.k, hidden_size) for step in reversed(h_t)]
-            h_n = h_n.index_select(1, re_sorted_idx.data).view(-1, b, self.k, hidden_size)
+            if torch.cuda.is_available():
+                h_n = h_n.index_select(1, re_sorted_idx.data.cpu()).view(-1, b, self.k, hidden_size)
+            else:
+                h_n = h_n.index_select(1, re_sorted_idx.data).view(-1, b, self.k, hidden_size)
         s = s.data
 
         return output, h_t, h_n, s, l, p

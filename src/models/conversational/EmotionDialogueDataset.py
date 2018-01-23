@@ -32,7 +32,6 @@ class EmotionDialogueDataset(data.Dataset):
 
         fields = [('src', EncodedSentenceField(sequential=True, eos_token=EOS_INDEX, include_lengths=True, batch_first=True)),
                   ('trg', EncodedSentenceField(sequential=True, eos_token=EOS_INDEX, batch_first=True)),
-                  # ('emo', data.Field(sequential=False, use_vocab=False))]
                   ('emo', data.RawField())]
 
         examples = []
@@ -69,8 +68,8 @@ class EmotionDialogueDataset(data.Dataset):
 
                 triplets.append((split_utterance, split_response, emotion))
 
-                if line_number == 100000:
-                    break
+                # if line_number == 100000:
+                #     break
         self.logger.info("Full vocabulary size: %d, pruning to %d" % (vocabulary.n_words, self.max_words))
         vocabulary.prune(self.max_words)
         self.logger.info("Encoding training data")

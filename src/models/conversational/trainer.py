@@ -5,7 +5,6 @@ import random
 import torch
 import torchtext
 from torch import optim
-from tqdm import tqdm
 
 from src.models.conversational.checkpoint import Checkpoint
 from src.models.conversational.evaluator import Evaluator
@@ -88,9 +87,6 @@ class Trainer(object):
 
                 input_variables, input_lengths = getattr(batch, 'src')
                 target_variables = getattr(batch, 'trg')
-
-                # TODO Probably won't work
-                # input_variables, input_lengths, target_variables = zip(*batch)
 
                 loss = self._train_batch(input_variables, input_lengths.tolist(), target_variables, model,
                                          teacher_forcing_ratio)
