@@ -99,7 +99,8 @@ class Attention(nn.Module):
         attn = torch.bmm(output, context.transpose(1, 2))
         if self.mask is not None:
             attn.data.masked_fill_(self.mask, -float('inf'))
-        attn = F.softmax(attn.view(-1, input_size)).view(batch_size, -1, input_size)
+        # attn = F.softmax(attn.view(-1, input_size), dim=1).view(batch_size, -1, input_size)
+        attn = F.softmax(attn.view(-1, input_size), dim=0).view(batch_size, -1, input_size)
 
         # (batch, out_len, in_len) * (batch, in_len, dim) -> (batch, out_len, dim)
         mix = torch.bmm(attn, context)
@@ -252,7 +253,8 @@ class DecoderRNN(BaseRNN):
         if self.use_attention:
             output, attn = self.attention(output, encoder_outputs)
 
-        predicted_softmax = function(self.out(output.view(-1, self.hidden_size))).view(batch_size, output_size, -1)
+        # predicted_softmax = function(self.out(output.view(-1, self.hidden_size)), dim=1).view(batch_size, output_size, -1)
+        predicted_softmax = function(self.out(output.view(-1, self.hidden_size)), dim=0).view(batch_size, output_size, -1)
         return predicted_softmax, hidden, attn
 
     def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None,
@@ -677,6 +679,7 @@ class TopKDecoder(torch.nn.Module):
             #       2. Otherwise, replace the ended sequence with the lowest sequence
             #       score with the new ended sequence
             #
+
             eos_indices = symbols[t].data.squeeze(1).eq(self.EOS).nonzero()
             if eos_indices.dim() > 0:
                 for i in range(eos_indices.size(0) - 1, -1, -1):

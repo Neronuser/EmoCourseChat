@@ -2,38 +2,55 @@ import itertools
 
 import numpy as np
 
+EOS = "EOS"
+
+SOS = "SOS"
+
 APP_NAME = "training_app"
 SOS_INDEX = 0
 EOS_INDEX = 1
 
 
 class Vocabulary:
-    def __init__(self, name, start_end_tokens=False):
+    def __init__(self, name, start_end_tokens=False, unique=-1):
         self.name = name
+        self.unique = unique
         if start_end_tokens:
-            self.word2index = {"SOS": SOS_INDEX, "EOS": EOS_INDEX}
+            self.word2index = {SOS: SOS_INDEX, EOS: EOS_INDEX}
             self.index2count = [0, 0]
-            self.index2word = ["SOS", "EOS"]
+            if unique == -1:
+                self.index2word = [SOS, EOS]
+            else:
+                self.index2word = np.empty(unique, dtype="U14")
+                self.index2word[0] = SOS
+                self.index2word[1] = EOS
             self.n_words = 2  # Count SOS and EOS
         else:
+            if unique == -1:
+                self.index2word = []
+            else:
+                self.index2word = np.empty(unique, dtype="U14")
             self.word2index = {}
             self.index2count = []
-            self.index2word = []
             self.n_words = 0
 
     def add_word(self, word):
         if word not in self.word2index:
             self.word2index[word] = self.n_words
             self.index2count.append(1)
-            self.index2word.append(word)
+            if self.unique == -1:
+                self.index2word.append(word)
+            else:
+                self.index2word[self.n_words] = word
             self.n_words += 1
         else:
             self.index2count[self.word2index[word]] += 1
 
     def prune(self, max_words):
-        self.index2word = np.array(self.index2word)
+        if self.unique == -1:
+            self.index2word = np.array(self.index2word)
         sort_indices = np.argsort(self.index2count)
-        top_words = self.index2word[sort_indices][-max_words+2:]
+        top_words = self.index2word[sort_indices][-max_words + 2:]
         index2word = np.empty(max_words, dtype='U14')
         word2index = {"SOS": SOS_INDEX, "EOS": EOS_INDEX}
         index2word[SOS_INDEX] = 'SOS'

@@ -5,7 +5,7 @@ import torch
 
 from src.models.conversational.EmotionDialogueDataset import EmotionDialogueDataset
 from src.models.conversational.checkpoint import Checkpoint
-from src.models.conversational.loss import Perplexity
+from src.models.conversational.loss import Perplexity, NLLLoss
 from src.models.conversational.model import EncoderRNN, DecoderRNN, Seq2seq, TopKDecoder
 from src.models.conversational.predictor import Predictor
 from src.models.conversational.trainer import Trainer
@@ -50,7 +50,8 @@ def run(config):
     else:
         weight = torch.ones(dataset.vocabulary.n_words)
         pad = EOS_INDEX
-        loss = Perplexity(weight, pad)
+        # loss = Perplexity(weight, pad)
+        loss = NLLLoss(weight, pad)
         if torch.cuda.is_available():
             loss.cuda()
 
@@ -61,16 +62,21 @@ def run(config):
             bidirectional = True
             encoder = EncoderRNN(dataset.vocabulary.n_words, max_length, hidden_size,
                                  bidirectional=bidirectional, variable_lengths=True, n_layers=n_layers)
+            # decoder = DecoderRNN(dataset.vocabulary.n_words, max_length,
+            #                      hidden_size * 2 if bidirectional else hidden_size,
+            #                      dropout_p=0.2, use_attention=True, bidirectional=bidirectional,
+            #                      eos_id=EOS_INDEX, sos_id=SOS_INDEX, n_layers=n_layers)
             decoder = DecoderRNN(dataset.vocabulary.n_words, max_length,
                                  hidden_size * 2 if bidirectional else hidden_size,
-                                 dropout_p=0.2, use_attention=True, bidirectional=bidirectional,
+                                 dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
                                  eos_id=EOS_INDEX, sos_id=SOS_INDEX, n_layers=n_layers)
             seq2seq = Seq2seq(encoder, decoder)
             if torch.cuda.is_available():
                 seq2seq.cuda()
 
             for param in seq2seq.parameters():
-                param.data.uniform_(-0.08, 0.08)
+                # param.data.uniform_(-0.08, 0.08)
+                param.data.uniform_(-0.1, 0.1)
 
             # Optimizer and learning rate scheduler can be customized by
             # explicitly constructing the objects and pass to the trainer.

@@ -9,6 +9,11 @@ from src.models.conversational.fields import EncodedSentenceField
 from src.models.conversational.utils import Vocabulary, EOS_INDEX, APP_NAME, SOS_INDEX
 from src.utils import preprocess
 
+# import sys
+# from pympler import muppy
+# from pympler import summary
+# from pympler import asizeof
+
 
 class EmotionDialogueDataset(data.Dataset):
 
@@ -42,7 +47,7 @@ class EmotionDialogueDataset(data.Dataset):
     def read_data(self):
         self.logger.info("Reading lines...")
         triplets = []
-        vocabulary = Vocabulary(self.corpus_name, start_end_tokens=True)
+        vocabulary = Vocabulary(self.corpus_name, start_end_tokens=True, unique=1842342)
         emotion_vocabulary = Vocabulary(self.corpus_name + '_emotion')
 
         with open(self.corpus) as corpus_handle:
@@ -66,21 +71,34 @@ class EmotionDialogueDataset(data.Dataset):
 
                 emotion_vocabulary.add_word(emotion)
 
-                triplets.append((split_utterance, split_response, emotion))
+                # triplets.append((tuple(split_utterance), tuple(split_response), emotion))
+                triplets.append((prep_utterance, prep_response, emotion))
 
-                # if line_number == 100000:
-                #     break
+                if line_number % 100000 == 0 and line_number != 0:
+                    print(line_number)
+                    break
+                    # all_objects = muppy.get_objects()
+                    # sum1 = summary.summarize(all_objects)
+                    # summary.print_(sum1)
+                    # print("T: %d" % sys.getsizeof(triplets))
+                    # print("I2W: %d" % sys.getsizeof(vocabulary.index2word))
+                    # print("W2I: %d" % sys.getsizeof(vocabulary.word2index))
+                    # print("pympler T: %d" % asizeof.asizeof(triplets))
+                    # print("pympler V: %d" % asizeof.asizeof(vocabulary))
+
         self.logger.info("Full vocabulary size: %d, pruning to %d" % (vocabulary.n_words, self.max_words))
         vocabulary.prune(self.max_words)
         self.logger.info("Encoding training data")
         encoded_triplets = []
         for utterance, response, emotion in triplets:
-            encoded_utterance = vocabulary.encode(utterance)
+            # encoded_utterance = vocabulary.encode(utterance)
+            encoded_utterance = vocabulary.encode(utterance.split())
             if not encoded_utterance:
                 continue
             # encoded_utterance.append(EOS_INDEX)
 
-            encoded_response = vocabulary.encode(response)
+            # encoded_response = vocabulary.encode(response)
+            encoded_response = vocabulary.encode(response.split())
             if not encoded_response:
                 continue
             encoded_response = [SOS_INDEX] + encoded_response

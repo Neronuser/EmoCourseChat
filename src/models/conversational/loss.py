@@ -1,7 +1,7 @@
-from __future__ import print_function
 import math
-import torch.nn as nn
+
 import numpy as np
+import torch.nn as nn
 
 
 class Loss(object):
