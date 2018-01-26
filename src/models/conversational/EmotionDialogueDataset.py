@@ -6,7 +6,7 @@ import torch
 from torchtext import data
 
 from src.models.conversational.fields import EncodedSentenceField
-from src.models.conversational.utils import Vocabulary, EOS_INDEX, APP_NAME, SOS_INDEX
+from src.models.conversational.utils import Vocabulary, EOS_INDEX, APP_NAME, SOS_INDEX, PAD_INDEX
 from src.utils import preprocess
 
 # import sys
@@ -35,8 +35,8 @@ class EmotionDialogueDataset(data.Dataset):
             self.logger.info("Saved data not found, start preparing training data ...")
             self.vocabulary, self.emotion_vocabulary, self.triplets = self.prepare_data()
 
-        fields = [('src', EncodedSentenceField(sequential=True, eos_token=EOS_INDEX, include_lengths=True, batch_first=True)),
-                  ('trg', EncodedSentenceField(sequential=True, eos_token=EOS_INDEX, batch_first=True)),
+        fields = [('src', EncodedSentenceField(sequential=True, pad_token=PAD_INDEX, include_lengths=True, batch_first=True)),
+                  ('trg', EncodedSentenceField(sequential=True, pad_token=PAD_INDEX, batch_first=True)),
                   ('emo', data.RawField())]
 
         examples = []
@@ -47,7 +47,7 @@ class EmotionDialogueDataset(data.Dataset):
     def read_data(self):
         self.logger.info("Reading lines...")
         triplets = []
-        vocabulary = Vocabulary(self.corpus_name, start_end_tokens=True, unique=1842342)
+        vocabulary = Vocabulary(self.corpus_name, start_end_tokens=True, unique=1842343)
         emotion_vocabulary = Vocabulary(self.corpus_name + '_emotion')
 
         with open(self.corpus) as corpus_handle:
@@ -76,7 +76,7 @@ class EmotionDialogueDataset(data.Dataset):
 
                 if line_number % 100000 == 0 and line_number != 0:
                     print(line_number)
-                    break
+                    # break
                     # all_objects = muppy.get_objects()
                     # sum1 = summary.summarize(all_objects)
                     # summary.print_(sum1)

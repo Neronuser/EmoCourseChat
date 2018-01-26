@@ -25,9 +25,8 @@ class EncodedSentenceField(Field):
             pad_length = max(0, max_len - len(x))
             padded.append(
                 list(x[:max_len]) +
-                [self.eos_token] * pad_length)
+                [self.pad_token] * pad_length)
             lengths.append(len(padded[-1]) - pad_length)
-            # TODO might be wrong because of EOS instead of PAD
         if self.include_lengths:
             return padded, lengths
         return padded

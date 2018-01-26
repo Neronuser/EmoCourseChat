@@ -9,7 +9,7 @@ from src.models.conversational.loss import Perplexity, NLLLoss
 from src.models.conversational.model import EncoderRNN, DecoderRNN, Seq2seq, TopKDecoder
 from src.models.conversational.predictor import Predictor
 from src.models.conversational.trainer import Trainer
-from src.models.conversational.utils import EOS_INDEX, SOS_INDEX
+from src.models.conversational.utils import EOS_INDEX, SOS_INDEX, PAD_INDEX
 from src.utils import parse_config, LOG_FORMAT
 from src.models.conversational.utils import APP_NAME
 
@@ -49,7 +49,7 @@ def run(config):
         seq2seq = checkpoint.model
     else:
         weight = torch.ones(dataset.vocabulary.n_words)
-        pad = EOS_INDEX
+        pad = PAD_INDEX
         # loss = Perplexity(weight, pad)
         loss = NLLLoss(weight, pad)
         if torch.cuda.is_available():

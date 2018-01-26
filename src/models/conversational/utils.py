@@ -6,9 +6,12 @@ EOS = "EOS"
 
 SOS = "SOS"
 
+PAD = "PAD"
+
 APP_NAME = "training_app"
 SOS_INDEX = 0
 EOS_INDEX = 1
+PAD_INDEX = 2
 
 
 class Vocabulary:
@@ -16,15 +19,16 @@ class Vocabulary:
         self.name = name
         self.unique = unique
         if start_end_tokens:
-            self.word2index = {SOS: SOS_INDEX, EOS: EOS_INDEX}
-            self.index2count = [0, 0]
+            self.word2index = {SOS: SOS_INDEX, EOS: EOS_INDEX, PAD: PAD_INDEX}
+            self.index2count = [0, 0, 0]
             if unique == -1:
-                self.index2word = [SOS, EOS]
+                self.index2word = [SOS, EOS, PAD]
             else:
                 self.index2word = np.empty(unique, dtype="U14")
                 self.index2word[0] = SOS
                 self.index2word[1] = EOS
-            self.n_words = 2  # Count SOS and EOS
+                self.index2word[2] = PAD
+            self.n_words = 3  # Count SOS and EOS
         else:
             if unique == -1:
                 self.index2word = []
@@ -50,14 +54,15 @@ class Vocabulary:
         if self.unique == -1:
             self.index2word = np.array(self.index2word)
         sort_indices = np.argsort(self.index2count)
-        top_words = self.index2word[sort_indices][-max_words + 2:]
+        top_words = self.index2word[sort_indices][-max_words + 3:]
         index2word = np.empty(max_words, dtype='U14')
-        word2index = {"SOS": SOS_INDEX, "EOS": EOS_INDEX}
+        word2index = {"SOS": SOS_INDEX, "EOS": EOS_INDEX, "PAD": PAD_INDEX}
         index2word[SOS_INDEX] = 'SOS'
         index2word[EOS_INDEX] = 'EOS'
+        index2word[PAD_INDEX] = 'PAD'
         for i, word in enumerate(top_words):
-            word2index[word] = 2 + i
-            index2word[2 + i] = word
+            word2index[word] = 3 + i
+            index2word[3 + i] = word
         self.index2word = index2word
         self.word2index = word2index
         self.n_words = max_words
@@ -65,19 +70,3 @@ class Vocabulary:
 
     def encode(self, word_list):
         return [self.word2index[word] for word in word_list if word in self.word2index]
-
-
-def pad(l, fill=EOS_INDEX):
-    return list(itertools.zip_longest(*l, fillvalue=fill))
-
-
-def binary_mask(l, value=EOS_INDEX):
-    m = []
-    for i in range(len(l)):
-        m.append([])
-        for j in range(len(l[i])):
-            if l[i][j] == value:
-                m[i].append(0)
-            else:
-                m[i].append(1)
-    return m

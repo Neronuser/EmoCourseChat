@@ -62,7 +62,6 @@ class Trainer(object):
         epoch_loss_total = 0  # Reset every epoch
 
         device = None if torch.cuda.is_available() else -1
-        # sort_key=lambda x: torchtext.data.interleave_keys(len(x.src), len(x.trg)),
         batch_iterator = torchtext.data.BucketIterator(data, batch_size=self.batch_size, repeat=False,
                                                        sort_key=lambda x: len(x.src),
                                                        shuffle=True, device=device, sort=False, sort_within_batch=True)
