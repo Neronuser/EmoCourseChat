@@ -10,12 +10,13 @@ from torch.autograd import Variable
 class BaseRNN(nn.Module):
     """Multi-layer RNN."""
 
-    def __init__(self, vocab_size, max_len, hidden_size, input_dropout_p, dropout_p, n_layers, rnn_cell):
+    def __init__(self, vocab_size, max_len, embeddings_dim, hidden_size, input_dropout_p, dropout_p, n_layers, rnn_cell):
         """Build layers and general architecture.
 
         Args:
             vocab_size (int): Size of the vocabulary.
             max_len (int): Maximum input sequence length.
+            embeddings_dim (int): Size of the embedding vector.
             hidden_size (int): Hidden layers size.
             input_dropout_p (float): Dropout probability for the input sequence.
             dropout_p (float): Dropout probability for the output sequence.
@@ -26,6 +27,7 @@ class BaseRNN(nn.Module):
         super(BaseRNN, self).__init__()
         self.vocab_size = vocab_size
         self.max_len = max_len
+        self.embeddings_dim = embeddings_dim
         self.hidden_size = hidden_size
         self.n_layers = n_layers
         self.input_dropout_p = input_dropout_p
@@ -104,7 +106,7 @@ class Attention(nn.Module):
 class EncoderRNN(BaseRNN):
     """Apply a multi-layer RNN to an input sequence."""
 
-    def __init__(self, vocab_size, max_len, hidden_size,
+    def __init__(self, vocab_size, max_len, embeddings_dim, hidden_size,
                  input_dropout_p=0, dropout_p=0,
                  n_layers=1, bidirectional=False, rnn_cell='gru', variable_lengths=False):
         """Build RNN layers.
@@ -112,6 +114,7 @@ class EncoderRNN(BaseRNN):
         Args:
             vocab_size (int): Vocabulary size.
             max_len (int): A maximum allowed length for the sequence to be processed.
+            embeddings_dim (int): The size of an embedding vector.
             hidden_size (int): The number of features in the hidden state `h`.
             input_dropout_p (Optional[float]): Dropout probability for the input sequence. Defaults to 0.
             dropout_p (Optional[float]): Dropout probability for the output sequence. Defaults to 0.
@@ -121,12 +124,12 @@ class EncoderRNN(BaseRNN):
             variable_lengths (Optional[bool]): If use variable length RNN. Defaults to False.
 
         """
-        super(EncoderRNN, self).__init__(vocab_size, max_len, hidden_size,
+        super(EncoderRNN, self).__init__(vocab_size, max_len, embeddings_dim, hidden_size,
                                          input_dropout_p, dropout_p, n_layers, rnn_cell)
 
         self.variable_lengths = variable_lengths
-        self.embedding = nn.Embedding(vocab_size, hidden_size)
-        self.rnn = self.rnn_cell(hidden_size, hidden_size, n_layers,
+        self.embedding = nn.Embedding(vocab_size, embeddings_dim)
+        self.rnn = self.rnn_cell(embeddings_dim, hidden_size, n_layers,
                                  batch_first=True, bidirectional=bidirectional, dropout=dropout_p)
 
     def forward(self, input_var, input_lengths=None):
@@ -166,7 +169,7 @@ class DecoderRNN(BaseRNN):
     KEY_LENGTH = 'length'
     KEY_SEQUENCE = 'sequence'
 
-    def __init__(self, vocab_size, max_len, hidden_size,
+    def __init__(self, vocab_size, max_len, embeddings_dim, hidden_size,
                  sos_id, eos_id,
                  n_layers=1, rnn_cell='gru', bidirectional=False,
                  input_dropout_p=0, dropout_p=0, use_attention=False):
@@ -175,6 +178,7 @@ class DecoderRNN(BaseRNN):
         Args:
             vocab_size (int): Size of the vocabulary.
             max_len (int): A maximum allowed length for the sequence to be processed.
+            embeddings_dim (int): The size of embeddings vectors.
             hidden_size (int): The number of features in the hidden state `h`.
             sos_id (int): Index of the start of sentence symbol.
             eos_id (int): Index of the end of sentence symbol.
@@ -186,12 +190,12 @@ class DecoderRNN(BaseRNN):
             use_attention(Optional[bool]): Flag indication whether to use attention mechanism or not. Defaults to False.
 
         """
-        super(DecoderRNN, self).__init__(vocab_size, max_len, hidden_size,
+        super(DecoderRNN, self).__init__(vocab_size, max_len, embeddings_dim, hidden_size,
                                          input_dropout_p, dropout_p,
                                          n_layers, rnn_cell)
 
         self.bidirectional_encoder = bidirectional
-        self.rnn = self.rnn_cell(hidden_size, hidden_size, n_layers, batch_first=True, dropout=dropout_p)
+        self.rnn = self.rnn_cell(embeddings_dim, hidden_size, n_layers, batch_first=True, dropout=dropout_p)
 
         self.output_size = vocab_size
         self.max_length = max_len
@@ -201,7 +205,7 @@ class DecoderRNN(BaseRNN):
 
         self.init_input = None
 
-        self.embedding = nn.Embedding(self.output_size, self.hidden_size)
+        self.embedding = nn.Embedding(self.output_size, self.embeddings_dim)
         if use_attention:
             self.attention = Attention(self.hidden_size)
 

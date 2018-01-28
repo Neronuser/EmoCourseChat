@@ -27,8 +27,9 @@ def run(config):
     save_dir = config['SavePath']
     learning_rate = config.getfloat('LearningRate')
     n_layers = config.getint('Layer')
+    embeddings_dim = config.getint('EmbeddingsDim')
     hidden_size = config.getint('Hidden')
-    batch_size = config.getint('Batch_size')
+    batch_size = config.getint('BatchSize')
     beam_size = config.getint('Beam')
     max_length = config.getint('MaxLength')
     max_words = config.getint('MaxWords')
@@ -63,13 +64,13 @@ def run(config):
         if not resume:
             # Initialize model
             bidirectional = True
-            encoder = EncoderRNN(dataset.vocabulary.n_words, max_length, hidden_size,
+            encoder = EncoderRNN(dataset.vocabulary.n_words, max_length, embeddings_dim, hidden_size,
                                  bidirectional=bidirectional, variable_lengths=True, n_layers=n_layers)
-            # decoder = DecoderRNN(dataset.vocabulary.n_words, max_length,
+            # decoder = DecoderRNN(dataset.vocabulary.n_words, max_length, embeddings_dim,
             #                      hidden_size * 2 if bidirectional else hidden_size,
             #                      dropout_p=0.2, use_attention=True, bidirectional=bidirectional,
             #                      eos_id=EOS_INDEX, sos_id=SOS_INDEX, n_layers=n_layers)
-            decoder = DecoderRNN(dataset.vocabulary.n_words, max_length,
+            decoder = DecoderRNN(dataset.vocabulary.n_words, max_length, embeddings_dim,
                                  hidden_size * 2 if bidirectional else hidden_size,
                                  dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
                                  eos_id=EOS_INDEX, sos_id=SOS_INDEX, n_layers=n_layers)
@@ -85,7 +86,7 @@ def run(config):
             # explicitly constructing the objects and pass to the trainer.
             #
             # optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters()), max_grad_norm=5)
-            optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters(), learning_rate=learning_rate), max_grad_norm=5)
+            optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters(), lr=learning_rate), max_grad_norm=5)
             ## optimizer = Optimizer(SGD(seq2seq.parameters(), lr=learning_rate, momentum=0.9, weight_decay=0.9), max_grad_norm=5)
             # scheduler = StepLR(optimizer.optimizer, 1)
             # optimizer.set_scheduler(scheduler)
