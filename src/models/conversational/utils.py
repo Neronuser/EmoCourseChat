@@ -1,11 +1,7 @@
-import itertools
-
 import numpy as np
 
 EOS = "EOS"
-
 SOS = "SOS"
-
 PAD = "PAD"
 
 APP_NAME = "training_app"
@@ -15,8 +11,16 @@ PAD_INDEX = 2
 
 
 class Vocabulary:
-    def __init__(self, name, start_end_tokens=False, unique=-1):
-        self.name = name
+    """Language/Category vocabulary: word->index and index->word maps."""
+
+    def __init__(self, start_end_tokens=False, unique=-1):
+        """Initialize an empty vocabulary.
+
+        Args:
+            start_end_tokens (bool): Add start, end and pad tokens into the vocabulary.
+            unique (Optional[int]): The number of unique words(if known, else -1). Defaults to -1.
+
+        """
         self.unique = unique
         if start_end_tokens:
             self.word2index = {SOS: SOS_INDEX, EOS: EOS_INDEX, PAD: PAD_INDEX}
@@ -28,7 +32,7 @@ class Vocabulary:
                 self.index2word[0] = SOS
                 self.index2word[1] = EOS
                 self.index2word[2] = PAD
-            self.n_words = 3  # Count SOS and EOS
+            self.n_words = 3
         else:
             if unique == -1:
                 self.index2word = []
@@ -39,6 +43,12 @@ class Vocabulary:
             self.n_words = 0
 
     def add_word(self, word):
+        """Try adding `word` to the vocabulary. Increase its count.
+
+        Args:
+            word (str): Target word.
+
+        """
         if word not in self.word2index:
             self.word2index[word] = self.n_words
             self.index2count.append(1)
@@ -51,6 +61,12 @@ class Vocabulary:
             self.index2count[self.word2index[word]] += 1
 
     def prune(self, max_words):
+        """Leave most common `max_words` in the vocabulary.
+
+        Args:
+            max_words (int): Number of most common words to leave in the vocabulary.
+
+        """
         if self.unique == -1:
             self.index2word = np.array(self.index2word)
         sort_indices = np.argsort(self.index2count)
@@ -69,4 +85,13 @@ class Vocabulary:
         del self.index2count
 
     def encode(self, word_list):
+        """Encode a list of words according to the vocabulary.
+
+        Args:
+            word_list (list(str)): Source text sequence.
+
+        Returns:
+            list(int): Encoded sequence.
+
+        """
         return [self.word2index[word] for word in word_list if word in self.word2index]

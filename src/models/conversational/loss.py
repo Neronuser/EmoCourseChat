@@ -5,30 +5,16 @@ import torch.nn as nn
 
 
 class Loss(object):
-    """ Base class for encapsulation of the loss functions.
-    This class defines interfaces that are commonly used with loss functions
-    in training and inferencing.  For information regarding individual loss
-    functions, please refer to http://pytorch.org/docs/master/nn.html#loss-functions
-    Note:
-        Do not use this class directly, use one of the sub classes.
-    Args:
-        name (str): name of the loss function used by logging messages.
-        criterion (torch.nn._Loss): one of PyTorch's loss function.  Refer
-            to http://pytorch.org/docs/master/nn.html#loss-functions for
-            a list of them.
-    Attributes:
-        name (str): name of the loss function used by logging messages.
-        criterion (torch.nn._Loss): one of PyTorch's loss function.  Refer
-            to http://pytorch.org/docs/master/nn.html#loss-functions for
-            a list of them.  Implementation depends on individual
-            sub-classes.
-        acc_loss (int or torcn.nn.Tensor): variable that stores accumulated loss.
-        norm_term (float): normalization term that can be used to calculate
-            the loss of multiple batches.  Implementation depends on individual
-            sub-classes.
-    """
+    """ Base class for loss functions."""
 
     def __init__(self, name, criterion):
+        """Defines criterion and logging name of the object.
+
+        Args:
+            name (str): Loss name for logging.
+            criterion (torch.nn._Loss): Torch loss criterion.
+
+        """
         self.name = name
         self.criterion = criterion
         if not issubclass(type(self.criterion), nn.modules.loss._Loss):
@@ -39,52 +25,54 @@ class Loss(object):
         self.norm_term = 0
 
     def reset(self):
-        """ Reset the accumulated loss. """
+        """Reset the accumulated loss."""
         self.acc_loss = 0
         self.norm_term = 0
 
     def get_loss(self):
-        """ Get the loss.
-        This method defines how to calculate the averaged loss given the
-        accumulated loss and the normalization term.  Override to define your
-        own logic.
+        """Loss calculation.
+
         Returns:
-            loss (float): value of the loss.
+            loss (float): Value of the loss.
+
         """
         raise NotImplementedError
 
     def eval_batch(self, outputs, target):
-        """ Evaluate and accumulate loss given outputs and expected results.
-        This method is called after each batch with the batch outputs and
-        the target (expected) results.  The loss and normalization term are
-        accumulated in this method.  Override it to define your own accumulation
-        method.
+        """Accumulate batch loss.
+
         Args:
-            outputs (torch.Tensor): outputs of a batch.
-            target (torch.Tensor): expected output of a batch.
+            outputs (torch.Tensor): Outputs of a batch.
+            target (torch.Tensor): Expected output of a batch.
+
         """
         raise NotImplementedError
 
     def cuda(self):
+        """Transfer to GPU."""
         self.criterion.cuda()
 
     def backward(self):
+        """Backpropagate loss."""
         if type(self.acc_loss) is int:
             raise ValueError("No loss to back propagate.")
         self.acc_loss.backward()
 
 
 class NLLLoss(Loss):
-    """ Batch averaged negative log-likelihood loss.
-    Args:
-        weight (torch.Tensor, optional): refer to http://pytorch.org/docs/master/nn.html#nllloss
-        mask (int, optional): index of masked token, i.e. weight[mask] = 0.
-        size_average (bool, optional): refer to http://pytorch.org/docs/master/nn.html#nllloss
-    """
+    """Batch averaged negative log-likelihood loss."""
 
     _NAME = "Avg NLLLoss"
 
     def __init__(self, weight=None, mask=None, size_average=True):
+        """Check if both weight and mask are given.
+
+        Args:
+            weight (Optional[torch.Tensor]): Tensor assigning weight to each of the classes. Defaults to None.
+            mask (Optional[int]): Index of masked token(padding). Defaults to None.
+            size_average (Optional[bool]): Averaging across observations if True, else - sum. Defaults to True.
+
+        """
         self.mask = mask
         self.size_average = size_average
         if mask is not None:
@@ -112,18 +100,21 @@ class NLLLoss(Loss):
 
 
 class Perplexity(NLLLoss):
-    """ Language model perplexity loss.
-    Perplexity is the token averaged likelihood.  When the averaging options are the
-    same, it is the exponential of negative log-likelihood.
-    Args:
-        weight (torch.Tensor, optional): refer to http://pytorch.org/docs/master/nn.html#nllloss
-        mask (int, optional): index of masked token, i.e. weight[mask] = 0.
+    """ Language model perplexity loss. Perplexity is the token averaged likelihood.
+    When the averaging options are the same, it is the exponential of negative log-likelihood.
     """
 
     _NAME = "Perplexity"
     _MAX_EXP = 100
 
     def __init__(self, weight=None, mask=None):
+        """Check if both weight and mask are given.
+
+        Args:
+            weight (Optional[torch.Tensor]): Tensor assigning weight to each of the classes. Defaults to None.
+            mask (Optional[int]): Index of masked token(padding). Defaults to None.
+
+        """
         super(Perplexity, self).__init__(weight=weight, mask=mask, size_average=False)
 
     def eval_batch(self, outputs, target):

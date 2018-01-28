@@ -2,11 +2,14 @@ import logging
 import os
 
 import torch
+from torch.optim import SGD
+from torch.optim.lr_scheduler import StepLR
 
-from src.models.conversational.EmotionDialogueDataset import EmotionDialogueDataset
+from src.models.conversational.emotion_dialogue_dataset import EmotionDialogueDataset
 from src.models.conversational.checkpoint import Checkpoint
 from src.models.conversational.loss import Perplexity, NLLLoss
 from src.models.conversational.model import EncoderRNN, DecoderRNN, Seq2seq, TopKDecoder
+from src.models.conversational.optimizer import Optimizer
 from src.models.conversational.predictor import Predictor
 from src.models.conversational.trainer import Trainer
 from src.models.conversational.utils import EOS_INDEX, SOS_INDEX, PAD_INDEX
@@ -82,6 +85,8 @@ def run(config):
             # explicitly constructing the objects and pass to the trainer.
             #
             # optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters()), max_grad_norm=5)
+            optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters(), learning_rate=learning_rate), max_grad_norm=5)
+            ## optimizer = Optimizer(SGD(seq2seq.parameters(), lr=learning_rate, momentum=0.9, weight_decay=0.9), max_grad_norm=5)
             # scheduler = StepLR(optimizer.optimizer, 1)
             # optimizer.set_scheduler(scheduler)
 
@@ -94,7 +99,7 @@ def run(config):
                           num_epochs=epochs, dev_data=None,
                           optimizer=optimizer,
                           teacher_forcing_ratio=teacher_forcing,
-                          resume=resume, learning_rate=learning_rate)
+                          resume=resume)
 
     beam_search = Seq2seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, beam_size))
     predictor = Predictor(beam_search, dataset.vocabulary)

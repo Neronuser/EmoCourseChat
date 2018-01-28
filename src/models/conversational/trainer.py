@@ -7,6 +7,7 @@ import torchtext
 from torch import optim
 
 from src.models.conversational.checkpoint import Checkpoint
+from src.models.conversational.emotion_dialogue_dataset import UTTERANCE_FIELD_NAME, RESPONSE_FIELD_NAME
 from src.models.conversational.evaluator import Evaluator
 from src.models.conversational.loss import NLLLoss
 from src.models.conversational.model import Seq2seq, TopKDecoder
@@ -16,9 +17,22 @@ from src.models.conversational.utils import APP_NAME
 
 
 class Trainer(object):
+    """Seq2Seq trainer class."""
+
     def __init__(self, expt_dir='experiment', loss=NLLLoss(), batch_size=64,
                  random_seed=None,
                  checkpoint_every=100, print_every=100):
+        """Set logger, random seed, dev evaluator, loss and optimizer up.
+
+        Args:
+            expt_dir (Optional[str]): Checkpoint directory path. Defaults to 'experiment'.
+            loss (Optional[loss.Loss]): Loss definition to use while training. Defaults to loss.NLLLoss.
+            batch_size (Optional[int]): Number of examples in a batch. Defaults to 64.
+            random_seed (Optional[int]): Random seed for random and torch. Defaults to None.
+            checkpoint_every (Optional[int]): Number of steps after which to checkpoint the model. Defaults to 100.
+            print_every (Optional[int]): Number of steps after which to log model state. Defaults to 100.
+
+        """
         self._trainer = "Simple Trainer"
         self.random_seed = random_seed
         if random_seed is not None:
@@ -40,6 +54,19 @@ class Trainer(object):
         self.logger = logging.getLogger(APP_NAME + '.Trainer')
 
     def _train_batch(self, input_variable, input_lengths, target_variable, model, teacher_forcing_ratio):
+        """Run training for the current batch.
+
+        Args:
+            input_variable (torch.autograd.Variable): Input sequence batch.
+            input_lengths (list(int)): List of input sequence lengths.
+            target_variable (torch.autograd.Variable): Target sequence batch.
+            model (seq2seq.models): Model to run training on.
+            teacher_forcing_ratio (Optional[float]): Teaching forcing ratio.
+
+        Returns:
+            float: Batch loss.
+
+        """
         loss = self.loss
         # Forward propagation
         decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths, target_variable,
@@ -56,8 +83,19 @@ class Trainer(object):
 
         return loss.get_loss()
 
-    def _train_epochs(self, data, model, n_epochs, start_epoch, start_step,
-                      dev_data=None, teacher_forcing_ratio=0):
+    def _train_epochs(self, data, model, n_epochs, start_epoch, start_step, dev_data, teacher_forcing_ratio):
+        """Run training for `n_epochs` epochs.
+
+        Args:
+            data (EmotionDialogueDataset): Dataset object to train on.
+            model (seq2seq.models): Model to run training on.
+            n_epochs (int): Number of epochs to run.
+            start_epoch (int): Starting epoch number.
+            start_step (int): Starting step number.
+            dev_data (Optional[torchtext.Dataset]): Dev dataset.
+            teacher_forcing_ratio (Optional[float]): Teaching forcing ratio.
+
+        """
         print_loss_total = 0  # Reset every print_every
         epoch_loss_total = 0  # Reset every epoch
 
@@ -84,8 +122,8 @@ class Trainer(object):
                 step += 1
                 step_elapsed += 1
 
-                input_variables, input_lengths = getattr(batch, 'src')
-                target_variables = getattr(batch, 'trg')
+                input_variables, input_lengths = getattr(batch, UTTERANCE_FIELD_NAME)
+                target_variables = getattr(batch, RESPONSE_FIELD_NAME)
 
                 loss = self._train_batch(input_variables, input_lengths.tolist(), target_variables, model,
                                          teacher_forcing_ratio)
@@ -111,8 +149,7 @@ class Trainer(object):
                 if step % self.checkpoint_every == 0 or step == total_steps:
                     Checkpoint(model=model,
                                optimizer=self.optimizer,
-                               epoch=epoch, step=step,
-                               vocab=data.vocabulary).save(self.expt_dir)
+                               epoch=epoch, step=step).save(self.expt_dir)
 
             if step_elapsed == 0:
                 continue
@@ -122,32 +159,33 @@ class Trainer(object):
             log_msg = "Finished epoch %d: Train %s: %.4f" % (epoch, self.loss.name, epoch_loss_avg)
             if dev_data is not None:
                 dev_loss, accuracy = self.evaluator.evaluate(model, dev_data)
-                self.optimizer.update(dev_loss, epoch)
+                self.optimizer.update(dev_loss)
                 log_msg += ", Dev %s: %.4f, Accuracy: %.4f" % (self.loss.name, dev_loss, accuracy)
                 model.train(mode=True)
             else:
-                self.optimizer.update(epoch_loss_avg, epoch)
+                self.optimizer.update(epoch_loss_avg)
 
             self.logger.info(log_msg)
 
     def train(self, model, data, num_epochs=5,
               resume=False, dev_data=None,
-              optimizer=None, teacher_forcing_ratio=0, learning_rate=0.01):
-        """ Run training for a given model.
+              optimizer=None, teacher_forcing_ratio=0):
+        """Run training for a given model.
+
         Args:
-            model (seq2seq.models): model to run training on, if `resume=True`, it would be
+            model (seq2seq.models): Model to run training on, if `resume=True`, it would be
                overwritten by the model loaded from the latest checkpoint.
-            data (seq2seq.dataset.dataset.Dataset): dataset object to train on
-            num_epochs (int, optional): number of epochs to run (default 5)
-            resume(bool, optional): resume training with the latest checkpoint, (default False)
-            dev_data (seq2seq.dataset.dataset.Dataset, optional): dev Dataset (default None)
-            optimizer (seq2seq.optim.Optimizer, optional): optimizer for training
-               (default: Optimizer(pytorch.optim.Adam, max_grad_norm=5))
-            teacher_forcing_ratio (float, optional): teaching forcing ratio (default 0)
+            data (EmotionDialogueDataset): Dataset object to train on.
+            num_epochs (Optional[int]): Number of epochs to run. Defaults to 5.
+            resume (Optional[bool]): Resume training with the latest checkpoint. Defaults to False.
+            dev_data (Optional[torchtext.Dataset]): Dev dataset. Defaults to None.
+            optimizer (Optional[Optimizer]): Optimizer for training.
+                Defaults to Optimizer(pytorch.optim.Adam, max_grad_norm=5).
+            teacher_forcing_ratio (Optional[float]): Teaching forcing ratio. Defaults to 0.
         Returns:
-            model (seq2seq.models): trained model.
+            model (seq2seq.models): Trained model.
+
         """
-        # If training is set to resume
         if resume:
             latest_checkpoint_path = Checkpoint.get_latest_checkpoint(self.expt_dir)
             resume_checkpoint = Checkpoint.load(latest_checkpoint_path)
@@ -167,12 +205,12 @@ class Trainer(object):
             start_epoch = 1
             step = 0
             if optimizer is None:
-                optimizer = Optimizer(optim.Adam(model.parameters(), lr=learning_rate), max_grad_norm=5)
+                optimizer = Optimizer(optim.Adam(model.parameters()), max_grad_norm=5)
             self.optimizer = optimizer
 
         self.logger.info("Optimizer: %s, Scheduler: %s" % (self.optimizer.optimizer, self.optimizer.scheduler))
 
         self._train_epochs(data, model, num_epochs,
-                           start_epoch, step, dev_data=dev_data,
-                           teacher_forcing_ratio=teacher_forcing_ratio)
+                           start_epoch, step, dev_data,
+                           teacher_forcing_ratio)
         return model

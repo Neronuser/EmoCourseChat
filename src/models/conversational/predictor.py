@@ -5,12 +5,13 @@ from torch.autograd import Variable
 class Predictor(object):
 
     def __init__(self, model, vocabulary):
-        """
-        Predictor class to evaluate for a given model.
+        """Inference class for a given model.
+
         Args:
-            model (seq2seq.models): trained model. This can be loaded from a checkpoint
-                using `seq2seq.util.checkpoint.load`
-            vocabulary (seq2seq.dataset.vocabulary.Vocabulary): source sequence vocabulary
+            model (seq2seq.models): Trained model. This can be loaded from a checkpoint
+                using `seq2seq.util.checkpoint.load`.
+            vocabulary (utils.Vocabulary): Language vocabulary.
+
         """
         if torch.cuda.is_available():
             self.model = model.cuda()
@@ -20,12 +21,13 @@ class Predictor(object):
         self.vocabulary = vocabulary
 
     def predict(self, src_seq):
-        """ Make prediction given `src_seq` as input.
+        """Predict given `src_seq` as input.
+
         Args:
-            src_seq (list): list of tokens in source language
+            src_seq (list(str)): List of tokens.
         Returns:
-            tgt_seq (list): list of tokens in target language as predicted
-            by the pre-trained model
+            tgt_seq (list(str)): Predicted list of tokens.
+
         """
         src_id_seq = Variable(torch.LongTensor([self.vocabulary.word2index[tok] for tok in src_seq]),
                               volatile=True).view(1, -1)

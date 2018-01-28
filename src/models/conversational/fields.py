@@ -4,24 +4,54 @@ from torchtext.data import Field
 
 
 class EncodedSentenceField(Field):
+    """Dataset field of already encoded sequences. Pad and convert into torch.autograd.Variable."""
+
     def __init__(self, **args):
+        """Call Field.__init__().
+
+        Args:
+            **args: See Field.__init__().
+
+        """
         super(EncodedSentenceField, self).__init__(**args)
 
     def preprocess(self, x):
+        """No preprocessing needed."""
         return x
 
     def process(self, batch, device, train):
+        """Pad a batch and convert into torch.autograd.Variable.
+
+        Args:
+            batch (list(object)): A list of examples in a batch.
+            device (int): None if torch.cuda.is_available() else -1.
+            train (bool): Whether the batch is from a training set.
+
+        Returns:
+            torch.autograd.Variable: Input to further models.
+
+        """
         padded = self.pad(batch)
         tensor = self.numericalize(padded, device=device, train=train)
         return tensor
 
-    def pad(self, minibatch):
-        minibatch = list(minibatch)
+    def pad(self, batch):
+        """Pad a batch with pad_token.
+
+        Args:
+            batch (list(object)): A list of examples in a batch.
+
+        Returns:
+            list(object): List of padded examples if self.include_lengths is False.
+            (list(object), list(int)): List of padded examples and list of their lengths otherwise.
+
+        """
+        batch = list(batch)
         if not self.sequential:
-            return minibatch
-        max_len = max(len(x) for x in minibatch)
+            return batch
+        max_len = max(len(x) for x in batch)
         padded, lengths = [], []
-        for x in minibatch:
+        for x in batch:
             pad_length = max(0, max_len - len(x))
             padded.append(
                 list(x[:max_len]) +
@@ -32,6 +62,19 @@ class EncodedSentenceField(Field):
         return padded
 
     def numericalize(self, arr, device=None, train=True):
+        """Convert a the example into a torch.autograd.Variable.
+
+        Args:
+            arr (list(object)): A list of examples in a batch.
+            device (int): None if torch.cuda.is_available() else -1. Defaults to None.
+            train (bool): Whether the batch is from a training set. Defaults to True.
+
+        Returns:
+            torch.autograd.Variable: examples ready for modelling if self.include_lengths is False.
+            torch.autograd.Variable, torch.LongTensor: examples ready for modelling,
+                example lengths if self.include_lengths is True.
+
+        """
         if self.include_lengths and not isinstance(arr, tuple):
             raise ValueError("Field has include_lengths set to True, but "
                              "input data is not a tuple of "
