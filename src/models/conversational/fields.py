@@ -6,15 +6,6 @@ from torchtext.data import Field
 class EncodedSentenceField(Field):
     """Dataset field of already encoded sequences. Pad and convert into torch.autograd.Variable."""
 
-    def __init__(self, **args):
-        """Call Field.__init__().
-
-        Args:
-            **args: See Field.__init__().
-
-        """
-        super(EncodedSentenceField, self).__init__(**args)
-
     def preprocess(self, x):
         """No preprocessing needed."""
         return x

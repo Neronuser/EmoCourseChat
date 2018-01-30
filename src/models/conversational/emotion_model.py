@@ -1,166 +1,39 @@
-import random
-
+from src.models.conversational.model import Seq2seq, BaseRNN, Attention, DecoderRNN, inflate
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-from src.models.conversational.utils import inflate
 
+class EmotionSeq2seq(Seq2seq):
 
-class BaseRNN(nn.Module):
-    """Multi-layer RNN."""
-
-    def __init__(self, vocab_size, max_len, embeddings_dim, hidden_size, input_dropout_p, dropout_p, n_layers,
-                 rnn_cell):
-        """Build layers and general architecture.
+    def forward(self, input_variable, input_lengths=None, target_variable=None, target_emotion=None):
+        """Seq2seq forward pass.
 
         Args:
-            vocab_size (int): Size of the vocabulary.
-            max_len (int): Maximum input sequence length.
-            embeddings_dim (int): Size of the embedding vector.
-            hidden_size (int): Hidden layers size.
-            input_dropout_p (float): Dropout probability for the input sequence.
-            dropout_p (float): Dropout probability for the output sequence.
-            n_layers (int): Number of recurrent layers.
-            rnn_cell (str): Type of RNN cell ('LSTM' or 'GRU').
-
-        """
-        super(BaseRNN, self).__init__()
-        self.vocab_size = vocab_size
-        self.max_len = max_len
-        self.embeddings_dim = embeddings_dim
-        self.hidden_size = hidden_size
-        self.n_layers = n_layers
-        self.input_dropout_p = input_dropout_p
-        self.input_dropout = nn.Dropout(p=input_dropout_p)
-        if rnn_cell.lower() == 'lstm':
-            self.rnn_cell = nn.LSTM
-        elif rnn_cell.lower() == 'gru':
-            self.rnn_cell = nn.GRU
-        else:
-            raise ValueError("Unsupported RNN Cell: {0}".format(rnn_cell))
-
-        self.dropout_p = dropout_p
-
-    def forward(self, *args, **kwargs):
-        raise NotImplementedError()
-
-
-class Attention(nn.Module):
-    """Apply attention mechanism to the output features from the decoder."""
-
-    def __init__(self, dim):
-        """Build the attention layer.
-
-        Args:
-            dim(int): The number of expected features in the output.
-
-        """
-        super(Attention, self).__init__()
-        self.linear_out = nn.Linear(dim * 2, dim)
-        self.mask = None
-
-    def set_mask(self, mask):
-        """Set indices to be masked.
-
-        Args:
-            mask (torch.Tensor): Tensor containing indices to be masked.
-
-        """
-        self.mask = mask
-
-    def forward(self, output, context):
-        """Attention forward pass.
-
-        Args:
-            output (torch.Tensor(batch, output_len, dimensions)): Tensor containing the output features
-                from the decoder.
-            context (torch.Tensor(batch, input_len, dimensions)): Tensor containing features of the encoded
-                input sequence.
+            input_variable (list): List of token IDs.
+            input_lengths (Optional[list(int)]): Lengths of sequences. Defaults to None.
+            target_variable (Optional[list]): List of token IDs. Defaults to None.
+            target_emotion (Optional[list]): List of emotion IDs. Defaults to None.
 
         Returns:
-            torch.Tensor(batch, output_len, dimensions): Tensor containing the attended output features
-                from the decoder.
-            torch.Tensor(batch, output_len, input_len): Tensor containing attention weights.
+            torch.Tensor(seq_len, batch, vocab_size): Decoding outputs.
+            torch.Tensor(num_layers * num_directions, batch, hidden_size): Hidden state.
+            dict: {*KEY_LENGTH* : lengths of output sequences, *KEY_SEQUENCE* : predicted token IDs}.
 
         """
-        batch_size = output.size(0)
-        hidden_size = output.size(2)
-        input_size = context.size(1)
-        # (batch, out_len, dim) * (batch, in_len, dim) -> (batch, out_len, in_len)
-        attn = torch.bmm(output, context.transpose(1, 2))
-        if self.mask is not None:
-            attn.data.masked_fill_(self.mask, -float('inf'))
-        attn = F.softmax(attn.view(-1, input_size), dim=1).view(batch_size, -1, input_size)
-
-        # (batch, out_len, in_len) * (batch, in_len, dim) -> (batch, out_len, dim)
-        mix = torch.bmm(attn, context)
-
-        # concat -> (batch, out_len, 2*dim)
-        combined = torch.cat((mix, output), dim=2)
-        # output -> (batch, out_len, dim)
-        output = F.tanh(self.linear_out(combined.view(-1, 2 * hidden_size))).view(batch_size, -1, hidden_size)
-
-        return output, attn
+        encoder_outputs, encoder_hidden = self.encoder(input_variable, input_lengths)
+        result = self.decoder(inputs=target_variable,
+                              emotion_inputs=target_emotion,
+                              encoder_hidden=encoder_hidden,
+                              encoder_outputs=encoder_outputs,
+                              function=self.decode_function)
+        return result
 
 
-class EncoderRNN(BaseRNN):
-    """Apply a multi-layer RNN to an input sequence."""
-
-    def __init__(self, vocab_size, max_len, embeddings_dim, hidden_size,
-                 input_dropout_p=0, dropout_p=0,
-                 n_layers=1, bidirectional=False, rnn_cell='gru', variable_lengths=False):
-        """Build RNN layers.
-
-        Args:
-            vocab_size (int): Vocabulary size.
-            max_len (int): A maximum allowed length for the sequence to be processed.
-            embeddings_dim (int): The size of an embedding vector.
-            hidden_size (int): The number of features in the hidden state `h`.
-            input_dropout_p (Optional[float]): Dropout probability for the input sequence. Defaults to 0.
-            dropout_p (Optional[float]): Dropout probability for the output sequence. Defaults to 0.
-            n_layers (Optional[int]): Number of recurrent layers. Defaults to 1.
-            bidirectional (Optional[bool]): If True, becomes a bidirectional encoder. Defaults to 1.
-            rnn_cell (Optional[str]): Type of RNN cell. Defaults to 'gru'.
-            variable_lengths (Optional[bool]): If use variable length RNN. Defaults to False.
-
-        """
-        super(EncoderRNN, self).__init__(vocab_size, max_len, embeddings_dim, hidden_size,
-                                         input_dropout_p, dropout_p, n_layers, rnn_cell)
-
-        self.variable_lengths = variable_lengths
-        self.embedding = nn.Embedding(vocab_size, embeddings_dim)
-        self.rnn = self.rnn_cell(embeddings_dim, hidden_size, n_layers,
-                                 batch_first=True, bidirectional=bidirectional, dropout=dropout_p)
-
-    def forward(self, input_var, input_lengths=None):
-        """Encoder forward pass.
-
-        Args:
-            input_var (torch.Tensor(batch, seq_len)): Tensor containing the features of the input sequence.
-            input_lengths (Optional[torch.Tensor(list(int))]): A list that contains the lengths of sequences
-                in the mini-batch.
-
-        Returns:
-            torch.Tensor(batch, seq_len, hidden_size): Variable containing the encoded features of the input sequence.
-            torch.Tensor(num_layers * num_directions, batch, hidden_size): Variable containing the features
-                in the hidden state `h`.
-
-        """
-        embedded = self.embedding(input_var)
-        embedded = self.input_dropout(embedded)
-        if self.variable_lengths:
-            embedded = nn.utils.rnn.pack_padded_sequence(embedded, input_lengths, batch_first=True)
-        output, hidden = self.rnn(embedded)
-        if self.variable_lengths:
-            output, _ = nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
-        return output, hidden
-
-
-class DecoderRNN(BaseRNN):
-    """Provides decoding in a seq2seq framework, with optional attention.
+class EmotionDecoderRNN(BaseRNN):
+    """Provides decoding in a seq2seq framework, with a controllable input(emotion).
 
     Attributes:
         KEY_ATTN_SCORE (str): key used to indicate attention weights in `ret_dict`
@@ -173,16 +46,17 @@ class DecoderRNN(BaseRNN):
     KEY_LENGTH = 'length'
     KEY_SEQUENCE = 'sequence'
 
-    def __init__(self, vocab_size, max_len, embeddings_dim, hidden_size,
-                 sos_id, eos_id,
-                 n_layers=1, rnn_cell='gru', bidirectional=False,
+    def __init__(self, vocab_size, emotion_vocab_size, max_len, embeddings_dim, emotion_embeddings_dim, hidden_size,
+                 sos_id, eos_id, n_layers=1, rnn_cell='gru', bidirectional=False,
                  input_dropout_p=0, dropout_p=0, use_attention=False):
         """Build decoder layers.
 
         Args:
             vocab_size (int): Size of the vocabulary.
+            emotion_vocab_size (int): Size of the emotion vocabulary.
             max_len (int): A maximum allowed length for the sequence to be processed.
-            embeddings_dim (int): The size of embedding vectors.
+            embeddings_dim (int): The size of embeddings vectors.
+            emotion_embeddings_dim (int): The size of emotion embedding vectors.
             hidden_size (int): The number of features in the hidden state `h`.
             sos_id (int): Index of the start of sentence symbol.
             eos_id (int): Index of the end of sentence symbol.
@@ -194,14 +68,17 @@ class DecoderRNN(BaseRNN):
             use_attention(Optional[bool]): Flag indication whether to use attention mechanism or not. Defaults to False.
 
         """
-        super(DecoderRNN, self).__init__(vocab_size, max_len, embeddings_dim, hidden_size,
-                                         input_dropout_p, dropout_p,
-                                         n_layers, rnn_cell)
+        super().__init__(vocab_size, max_len, embeddings_dim, hidden_size,
+                         input_dropout_p, dropout_p,
+                         n_layers, rnn_cell)
 
         self.bidirectional_encoder = bidirectional
-        self.rnn = self.rnn_cell(embeddings_dim, hidden_size, n_layers, batch_first=True, dropout=dropout_p)
+        self.rnn = self.rnn_cell(embeddings_dim + emotion_embeddings_dim, hidden_size, n_layers, batch_first=True,
+                                 dropout=dropout_p)
 
         self.output_size = vocab_size
+        self.emotion_vocab_size = emotion_vocab_size
+        self.emotion_embeddings_dim = emotion_embeddings_dim
         self.max_length = max_len
         self.use_attention = use_attention
         self.eos_id = eos_id
@@ -210,16 +87,19 @@ class DecoderRNN(BaseRNN):
         self.init_input = None
 
         self.embedding = nn.Embedding(self.output_size, self.embeddings_dim)
+        self.emotion_embedding = nn.Embedding(self.emotion_vocab_size, self.emotion_embeddings_dim)
         if use_attention:
             self.attention = Attention(self.hidden_size)
 
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
-    def forward_step(self, input_var, hidden, encoder_outputs, function):
+    def forward_step(self, input_var, input_emotion, hidden, encoder_outputs, function):
         batch_size = input_var.size(0)
         output_size = input_var.size(1)
         embedded = self.embedding(input_var)
         embedded = self.input_dropout(embedded)
+        embedded_emotion = self.emotion_embedding(input_emotion)
+        embedded = torch.cat((embedded, embedded_emotion.view((batch_size, 1, self.emotion_embeddings_dim))), dim=2)
 
         output, hidden = self.rnn(embedded, hidden)
 
@@ -231,12 +111,14 @@ class DecoderRNN(BaseRNN):
                                                                                               -1)
         return predicted_softmax, hidden, attn
 
-    def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None,
-                function=F.log_softmax, teacher_forcing_ratio=0):
+    def forward(self, inputs=None, emotion_inputs=None, encoder_hidden=None, encoder_outputs=None,
+                function=F.log_softmax):
         """Decoder forward pass.
 
         Args:
             inputs (Optional[torch.Tensor(batch, seq_len, input_size)]): List of token IDs for teacher forcing.
+                Defaults to None.
+            emotion_inputs (Optional[torch.Tensor(batch, seq_len, input_size)]): Emotion category.
                 Defaults to None.
             encoder_hidden (Optional[torch.Tensor(num_layers * num_directions, batch_size, hidden_size)]): Hidden
                 state `h` of encoder for the initial hidden state of the decoder. Defaults to None.
@@ -244,7 +126,6 @@ class DecoderRNN(BaseRNN):
                 for attention mechanism. Defaults to None.
             function (Optional[torch.nn.Module]): Function to generate symbols from RNN hidden state.
                 Defaults to `torch.nn.functional.log_softmax`.
-            teacher_forcing_ratio (Optional[float]): Probability of teacher forcing. Defaults to 0.
 
         Returns:
             torch.Tensor(seq_len, batch, vocab_size): Decoding outputs.
@@ -256,10 +137,8 @@ class DecoderRNN(BaseRNN):
             ret_dict[DecoderRNN.KEY_ATTN_SCORE] = list()
 
         inputs, batch_size, max_length = self._validate_args(inputs, encoder_hidden, encoder_outputs,
-                                                             function, teacher_forcing_ratio)
+                                                             function)
         decoder_hidden = self._init_state(encoder_hidden)
-
-        use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
 
         decoder_outputs = []
         sequence_symbols = []
@@ -279,29 +158,14 @@ class DecoderRNN(BaseRNN):
                 lengths[update_idx] = len(sequence_symbols)
             return symbols
 
-        # Manual unrolling is used to support random teacher forcing.
-        # If teacher_forcing_ratio is True or False instead of a probability, the unrolling can be done in graph
-        if use_teacher_forcing:
-            decoder_input = inputs[:, :-1]
-            decoder_output, decoder_hidden, attn = self.forward_step(decoder_input, decoder_hidden, encoder_outputs,
-                                                                     function=function)
-
-            for di in range(decoder_output.size(1)):
-                step_output = decoder_output[:, di, :]
-                if attn is not None:
-                    step_attn = attn[:, di, :]
-                else:
-                    step_attn = None
-                decode(di, step_output, step_attn)
-        else:
-            decoder_input = inputs[:, 0].unsqueeze(1)
-            for di in range(max_length):
-                decoder_output, decoder_hidden, step_attn = self.forward_step(decoder_input, decoder_hidden,
-                                                                              encoder_outputs,
-                                                                              function=function)
-                step_output = decoder_output.squeeze(1)
-                symbols = decode(di, step_output, step_attn)
-                decoder_input = symbols
+        decoder_input = inputs[:, 0].unsqueeze(1)
+        for di in range(max_length):
+            decoder_output, decoder_hidden, step_attn = self.forward_step(decoder_input, emotion_inputs, decoder_hidden,
+                                                                          encoder_outputs,
+                                                                          function=function)
+            step_output = decoder_output.squeeze(1)
+            symbols = decode(di, step_output, step_attn)
+            decoder_input = symbols
 
         ret_dict[DecoderRNN.KEY_SEQUENCE] = sequence_symbols
         ret_dict[DecoderRNN.KEY_LENGTH] = lengths.tolist()
@@ -326,7 +190,7 @@ class DecoderRNN(BaseRNN):
             h = torch.cat([h[0:h.size(0):2], h[1:h.size(0):2]], 2)
         return h
 
-    def _validate_args(self, inputs, encoder_hidden, encoder_outputs, function, teacher_forcing_ratio):
+    def _validate_args(self, inputs, encoder_hidden, encoder_outputs, function):
         if self.use_attention:
             if encoder_outputs is None:
                 raise ValueError("Argument encoder_outputs cannot be None when attention is used.")
@@ -345,8 +209,6 @@ class DecoderRNN(BaseRNN):
 
         # set default input and max decoding length
         if inputs is None:
-            if teacher_forcing_ratio > 0:
-                raise ValueError("Teacher forcing has to be disabled (set 0) when no inputs is provided.")
             inputs = Variable(torch.LongTensor([self.sos_id] * batch_size),
                               volatile=True).view(batch_size, 1)
             if torch.cuda.is_available():
@@ -358,64 +220,18 @@ class DecoderRNN(BaseRNN):
         return inputs, batch_size, max_length
 
 
-class Seq2seq(nn.Module):
-    """Standard sequence-to-sequence architecture with configurable encoder and decoder."""
-
-    def __init__(self, encoder, decoder, decode_function=F.log_softmax):
-        """Build encoder and decoder.
-
-        Args:
-            encoder (EncoderRNN): Object of EncoderRNN.
-            decoder (DecoderRNN): Object of DecoderRNN.
-            decode_function (Optional[func]): function to generate symbols from output hidden states.
-                Defaults to F.log_softmax.
-
-        """
-        super(Seq2seq, self).__init__()
-        self.encoder = encoder
-        self.decoder = decoder
-        self.decode_function = decode_function
-
-    def flatten_parameters(self):
-        self.encoder.rnn.flatten_parameters()
-        self.decoder.rnn.flatten_parameters()
-
-    def forward(self, input_variable, input_lengths=None, target_variable=None, teacher_forcing_ratio=0):
-        """Seq2seq forward pass.
-
-        Args:
-            input_variable (list): List of token IDs.
-            input_lengths (Optional[list(int)]): Lengths of sequences. Defaults to None.
-            target_variable (Optional[list]): List of token IDs. Defaults to None.
-            teacher_forcing_ratio (Optional[int]): The probability of teacher forcing. Defaults to 0.
-
-        Returns:
-            torch.Tensor(seq_len, batch, vocab_size): Decoding outputs.
-            torch.Tensor(num_layers * num_directions, batch, hidden_size): Hidden state.
-            dict: {*KEY_LENGTH* : lengths of output sequences, *KEY_SEQUENCE* : predicted token IDs}.
-
-        """
-        encoder_outputs, encoder_hidden = self.encoder(input_variable, input_lengths)
-        result = self.decoder(inputs=target_variable,
-                              encoder_hidden=encoder_hidden,
-                              encoder_outputs=encoder_outputs,
-                              function=self.decode_function,
-                              teacher_forcing_ratio=teacher_forcing_ratio)
-        return result
-
-
-class TopKDecoder(torch.nn.Module):
+class EmotionTopKDecoder(torch.nn.Module):
     """Top-K decoding with beam search."""
 
     def __init__(self, decoder_rnn, k):
         """Builds the decoder layers.
 
         Args:
-            decoder_rnn (DecoderRNN): An object of DecoderRNN used for decoding.
+            decoder_rnn (EmotionDecoderRNN): An object of EmotionDecoderRNN used for decoding.
             k (int): Size of the beam.
 
         """
-        super(TopKDecoder, self).__init__()
+        super().__init__()
         self.rnn = decoder_rnn
         self.k = k
         self.hidden_size = self.rnn.hidden_size
@@ -423,12 +239,13 @@ class TopKDecoder(torch.nn.Module):
         self.SOS = self.rnn.sos_id
         self.EOS = self.rnn.eos_id
 
-    def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None, function=F.log_softmax,
+    def forward(self, inputs=None, emotion_inputs=None, encoder_hidden=None, encoder_outputs=None, function=F.log_softmax,
                 teacher_forcing_ratio=0, retain_output_probs=True):
         """
         Args:
             inputs (Optional[torch.Tensor(batch, seq_len, input_size)]): List of token IDs for teacher forcing.
                 Defaults to None.
+            emotion_inputs (Optional[torch.Tensor(batch, 1)]): Response emotion IDs. Defaults to None.
             encoder_hidden (Optional[torch.Tensor(num_layers * num_directions, batch_size, hidden_size)]): Hidden
                 state `h` of encoder for the initial hidden state of the decoder. Defaults to None.
             encoder_outputs (Optional[torch.Tensor(batch, seq_len, hidden_size)]): Outputs of the encoder
@@ -447,7 +264,7 @@ class TopKDecoder(torch.nn.Module):
 
         """
         inputs, batch_size, max_length = self.rnn._validate_args(inputs, encoder_hidden, encoder_outputs,
-                                                                 function, teacher_forcing_ratio)
+                                                                 function)
 
         pos_index = torch.LongTensor(range(batch_size)) * self.k
         if torch.cuda.is_available():
@@ -485,6 +302,8 @@ class TopKDecoder(torch.nn.Module):
             input_seq = input_seq.cuda()
         input_var = Variable(input_seq)
 
+        emotion_inputs = inflate(emotion_inputs, self.k, dim=0)
+
         # Store decisions for backtracking
         stored_outputs = list()
         stored_scores = list()
@@ -495,7 +314,7 @@ class TopKDecoder(torch.nn.Module):
         for _ in range(0, max_length):
 
             # Run the RNN one step forward
-            log_softmax_output, hidden, _ = self.rnn.forward_step(input_var, hidden,
+            log_softmax_output, hidden, _ = self.rnn.forward_step(input_var, emotion_inputs, hidden,
                                                                   inflated_encoder_outputs, function=function)
 
             # If doing local backprop (e.g. supervised training), retain the output layer

@@ -3,6 +3,7 @@ import logging
 import os
 
 import torch
+import torchtext
 from torchtext import data
 
 from src.models.conversational.fields import EncodedSentenceField
@@ -51,8 +52,8 @@ class EmotionDialogueDataset(data.Dataset):
             (UTTERANCE_FIELD_NAME,
              EncodedSentenceField(sequential=True, pad_token=PAD_INDEX, include_lengths=True, batch_first=True)),
             (RESPONSE_FIELD_NAME, EncodedSentenceField(sequential=True, pad_token=PAD_INDEX, batch_first=True)),
-            (EMOTION_FIELD_NAME, data.RawField())]
-
+            (EMOTION_FIELD_NAME, EncodedSentenceField(sequential=False))]
+        self.logger.info("Start converting to Examples")
         examples = []
         for src_line, trg_line, emotion in self.triplets:
             examples.append(data.Example.fromlist([src_line, trg_line, emotion], fields))

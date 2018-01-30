@@ -95,3 +95,21 @@ class Vocabulary:
 
         """
         return [self.word2index[word] for word in word_list if word in self.word2index]
+
+
+def inflate(tensor, times, dim):
+    """Given a tensor, 'inflates' it along the given dimension by replicating each slice
+        specified number of times (in-place).
+
+    Args:
+        tensor (torch.Tensor): Tensor to inflate.
+        times (int): Number of repetitions.
+        dim (int): Axis for inflation.
+
+    Returns:
+        torch.Tensor: Inflated tensor.
+
+    """
+    repeat_dims = [1] * tensor.dim()
+    repeat_dims[dim] = times
+    return tensor.repeat(*repeat_dims)
