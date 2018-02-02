@@ -39,7 +39,7 @@ class EmotionDialogueDataset(data.Dataset):
         self.corpus_name = corpus_path.split('/')[-1].split('.')[0]
         self.logger = logging.getLogger(APP_NAME + '.Dataset')
         try:
-            logging.info("Start loading training data ...")
+            self.logger.info("Start loading training data ...")
             self.vocabulary = torch.load(os.path.join(save_dir, 'training_data', self.corpus_name, 'vocabulary.tar'))
             self.emotion_vocabulary = torch.load(
                 os.path.join(save_dir, 'training_data', self.corpus_name, 'emotion_vocabulary.tar'))
