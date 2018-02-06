@@ -50,9 +50,9 @@ class EmotionDialogueDataset(data.Dataset):
 
         fields = [
             (UTTERANCE_FIELD_NAME,
-             EncodedSentenceField(sequential=True, pad_token=PAD_INDEX, include_lengths=True, batch_first=True)),
-            (RESPONSE_FIELD_NAME, EncodedSentenceField(sequential=True, pad_token=PAD_INDEX, batch_first=True)),
-            (EMOTION_FIELD_NAME, EncodedSentenceField(sequential=False))]
+             EncodedSentenceField(sequential=True, pad_token=PAD_INDEX, include_lengths=True, batch_first=True, use_vocab=False)),
+            (RESPONSE_FIELD_NAME, EncodedSentenceField(sequential=True, pad_token=PAD_INDEX, batch_first=True, use_vocab=False)),
+            (EMOTION_FIELD_NAME, EncodedSentenceField(sequential=False, use_vocab=False))]
         self.logger.info("Start converting to Examples")
         examples = []
         for src_line, trg_line, emotion in self.triplets:
@@ -76,6 +76,13 @@ class EmotionDialogueDataset(data.Dataset):
         with open(self.corpus_path) as corpus_handle:
             reader = csv.reader(corpus_handle)
             for line_number, (utterance, response, emotion) in enumerate(reader):
+                # Load movie corpus only
+                if line_number < 4107436:
+                    continue
+
+                if line_number > 4329052:
+                    break
+
                 prep_utterance = preprocess(utterance)
                 split_utterance = prep_utterance.split(' ')
                 if len(split_utterance) >= self.max_sentence_length:

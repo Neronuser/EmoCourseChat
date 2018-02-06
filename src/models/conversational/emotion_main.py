@@ -9,7 +9,7 @@ from src.models.conversational.checkpoint import Checkpoint
 from src.models.conversational.emotion_dialogue_dataset import EmotionDialogueDataset
 from src.models.conversational.emotion_model import EmotionDecoderRNN, EmotionSeq2seq, EmotionTopKDecoder
 from src.models.conversational.emotion_trainer import EmotionTrainer
-from src.models.conversational.loss import NLLLoss
+from src.models.conversational.loss import NLLLoss, Perplexity
 from src.models.conversational.model import EncoderRNN
 from src.models.conversational.optimizer import Optimizer
 from src.models.conversational.predictor import Predictor
@@ -42,7 +42,7 @@ def run(config):
     formatter = logging.Formatter(LOG_FORMAT)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    logger.info(config)
+    logger.info(dict(config.items()))
 
     dataset = EmotionDialogueDataset(train_path, save_dir, max_length, max_words)
 
@@ -55,8 +55,7 @@ def run(config):
     else:
         weight = torch.ones(dataset.vocabulary.n_words)
         pad = PAD_INDEX
-        # loss = Perplexity(weight, pad)
-        loss = NLLLoss(weight, pad)
+        loss = Perplexity(weight, pad)
         if torch.cuda.is_available():
             loss.cuda()
 
@@ -64,14 +63,14 @@ def run(config):
         optimizer = None
         if not resume:
             # Initialize model
-            bidirectional = True
+            bidirectional = False
             encoder = EncoderRNN(dataset.vocabulary.n_words, max_length, embeddings_dim, hidden_size,
-                                 bidirectional=bidirectional, variable_lengths=True, n_layers=n_layers)
+                                 bidirectional=bidirectional, variable_lengths=True, n_layers=n_layers, rnn_cell='lstm')
             decoder = EmotionDecoderRNN(dataset.vocabulary.n_words, dataset.emotion_vocabulary.n_words, max_length,
                                         embeddings_dim,
                                         emotion_embeddings_dim, hidden_size * 2 if bidirectional else hidden_size,
-                                        dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
-                                        eos_id=EOS_INDEX, sos_id=SOS_INDEX, n_layers=n_layers)
+                                        dropout_p=0, use_attention=False, bidirectional=bidirectional,
+                                        eos_id=EOS_INDEX, sos_id=SOS_INDEX, n_layers=n_layers, rnn_cell='lstm')
             seq2seq = EmotionSeq2seq(encoder, decoder)
             if torch.cuda.is_available():
                 seq2seq.cuda()
@@ -82,7 +81,7 @@ def run(config):
             # Optimizer and learning rate scheduler can be customized by
             # explicitly constructing the objects and pass to the trainer.
             #
-            optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters(), lr=learning_rate), max_grad_norm=5)
+            optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters(), lr=learning_rate), max_grad_norm=1)
             # optimizer = Optimizer(SGD(seq2seq.parameters(), lr=learning_rate, momentum=0.9, weight_decay=0.9),
             #                       max_grad_norm=5)
             # scheduler = StepLR(optimizer.optimizer, 1)

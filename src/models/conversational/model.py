@@ -227,7 +227,7 @@ class DecoderRNN(BaseRNN):
         if self.use_attention:
             output, attn = self.attention(output, encoder_outputs)
 
-        predicted_softmax = function(self.out(output.view(-1, self.hidden_size)), dim=1).view(batch_size, output_size,
+        predicted_softmax = function(self.out(output.contiguous().view(-1, self.hidden_size)), dim=1).view(batch_size, output_size,
                                                                                               -1)
         return predicted_softmax, hidden, attn
 
@@ -688,7 +688,10 @@ class TopKDecoder(torch.nn.Module):
         if lstm:
             h_t = [tuple([h.index_select(1, re_sorted_idx).view(-1, b, self.k, hidden_size) for h in step]) for step in
                    reversed(h_t)]
-            h_n = tuple([h.index_select(1, re_sorted_idx.data).view(-1, b, self.k, hidden_size) for h in h_n])
+            if torch.cuda.is_available():
+                h_n = tuple([h.index_select(1, re_sorted_idx.data.cpu()).view(-1, b, self.k, hidden_size) for h in h_n])
+            else:
+                h_n = tuple([h.index_select(1, re_sorted_idx.data).view(-1, b, self.k, hidden_size) for h in h_n])
         else:
             h_t = [step.index_select(1, re_sorted_idx).view(-1, b, self.k, hidden_size) for step in reversed(h_t)]
             if torch.cuda.is_available():

@@ -41,7 +41,7 @@ def run(config):
     formatter = logging.Formatter(LOG_FORMAT)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    logger.info(config)
+    logger.info(dict(config.items()))
 
     dataset = EmotionDialogueDataset(train_path, save_dir, max_length, max_words)
 
@@ -54,8 +54,7 @@ def run(config):
     else:
         weight = torch.ones(dataset.vocabulary.n_words)
         pad = PAD_INDEX
-        # loss = Perplexity(weight, pad)
-        loss = NLLLoss(weight, pad)
+        loss = Perplexity(weight, pad)
         if torch.cuda.is_available():
             loss.cuda()
 
@@ -63,27 +62,26 @@ def run(config):
         optimizer = None
         if not resume:
             # Initialize model
-            bidirectional = True
+            bidirectional = False
             encoder = EncoderRNN(dataset.vocabulary.n_words, max_length, embeddings_dim, hidden_size,
-                                 bidirectional=bidirectional, variable_lengths=True, n_layers=n_layers)
+                                 bidirectional=bidirectional, variable_lengths=True, n_layers=n_layers, rnn_cell='lstm')
             decoder = DecoderRNN(dataset.vocabulary.n_words, max_length, embeddings_dim,
                                  hidden_size * 2 if bidirectional else hidden_size,
-                                 dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
-                                 eos_id=EOS_INDEX, sos_id=SOS_INDEX, n_layers=n_layers)
+                                 dropout_p=0., use_attention=False, bidirectional=bidirectional,
+                                 eos_id=EOS_INDEX, sos_id=SOS_INDEX, n_layers=n_layers, rnn_cell='lstm')
             seq2seq = Seq2seq(encoder, decoder)
             if torch.cuda.is_available():
                 seq2seq.cuda()
 
             for param in seq2seq.parameters():
-                # param.data.uniform_(-0.08, 0.08)
                 param.data.uniform_(-0.1, 0.1)
 
             # Optimizer and learning rate scheduler can be customized by
             # explicitly constructing the objects and pass to the trainer.
             #
             # optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters()), max_grad_norm=5)
-            optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters(), lr=learning_rate), max_grad_norm=5)
-            ## optimizer = Optimizer(SGD(seq2seq.parameters(), lr=learning_rate, momentum=0.9, weight_decay=0.9), max_grad_norm=5)
+            optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters(), lr=learning_rate), max_grad_norm=1)
+            # optimizer = Optimizer(SGD(seq2seq.parameters(), lr=learning_rate, momentum=0.9, weight_decay=0.999), max_grad_norm=5)
             # scheduler = StepLR(optimizer.optimizer, 1)
             # optimizer.set_scheduler(scheduler)
 
@@ -92,19 +90,19 @@ def run(config):
                     checkpoint_every=save_every,
                     print_every=print_every, expt_dir=save_dir)
 
-        seq2seq = t.train(seq2seq, dataset,
-                          num_epochs=epochs, dev_data=None,
-                          optimizer=optimizer,
-                          teacher_forcing_ratio=teacher_forcing,
-                          resume=resume)
+        t.train(seq2seq, dataset,
+                num_epochs=epochs, dev_data=None,
+                optimizer=optimizer,
+                teacher_forcing_ratio=teacher_forcing,
+                resume=resume)
 
-    beam_search = Seq2seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, beam_size))
-    predictor = Predictor(beam_search, dataset.vocabulary)
-
-    while True:
-        seq_str = input("Type in a source sequence:")
-        seq = seq_str.strip().split()
-        print(predictor.predict(seq))
+    # beam_search = Seq2seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, beam_size))
+    # predictor = Predictor(beam_search, dataset.vocabulary)
+    #
+    # while True:
+    #     seq_str = input("Type in a source sequence:")
+    #     seq = seq_str.strip().split()
+    #     print(predictor.predict(seq))
 
 
 if __name__ == '__main__':
