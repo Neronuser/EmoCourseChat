@@ -35,7 +35,8 @@ class Predictor(object):
         """
         src_id_seq = Variable(torch.LongTensor([self.vocabulary.word2index[tok] for tok in src_seq]),
                               volatile=True).view(1, -1)
-        if torch.cuda.is_available():
+        cuda = torch.cuda.is_available()
+        if cuda:
             src_id_seq = src_id_seq.cuda()
 
         if emotion is None:
@@ -43,6 +44,10 @@ class Predictor(object):
         else:
             emotion_id = Variable(torch.LongTensor([self.emotion_vocabulary.word2index[emotion]]),
                                   volatile=True).view(1, -1)
+
+            if cuda:
+                emotion_id = emotion_id.cuda()
+
             softmax_list, _, other = self.model(src_id_seq, [len(src_seq)], target_emotion=emotion_id)
 
         length = other['length'][0]

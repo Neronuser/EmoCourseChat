@@ -507,7 +507,10 @@ class EmotionTopKDecoder(torch.nn.Module):
         if lstm:
             h_t = [tuple([h.index_select(1, re_sorted_idx).view(-1, b, self.k, hidden_size) for h in step]) for step in
                    reversed(h_t)]
-            h_n = tuple([h.index_select(1, re_sorted_idx.data).view(-1, b, self.k, hidden_size) for h in h_n])
+            if torch.cuda.is_available():
+                h_n = tuple([h.index_select(1, re_sorted_idx.data.cpu()).view(-1, b, self.k, hidden_size) for h in h_n])
+            else:
+                h_n = tuple([h.index_select(1, re_sorted_idx.data).view(-1, b, self.k, hidden_size) for h in h_n])
         else:
             h_t = [step.index_select(1, re_sorted_idx).view(-1, b, self.k, hidden_size) for step in reversed(h_t)]
             if torch.cuda.is_available():

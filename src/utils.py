@@ -1,7 +1,11 @@
 import configparser
+import pickle
 import re
 import string
 
+import numpy as np
+from numpy import dtype, float32 as REAL, fromstring
+from scipy.spatial.distance import cosine, cdist
 from textacy.preprocess import preprocess_text
 
 CONFIG_PATH = 'config.ini'
@@ -41,3 +45,49 @@ def parse_config(section):
     config = configparser.ConfigParser(allow_no_value=True)
     config.read(CONFIG_PATH)
     return config[section]
+
+
+def load_word2vec(w2v_path, max_words=None):
+    with open(w2v_path, "rb") as fin:
+        header = fin.readline()
+        vocab_size, vector_size = map(int, header.split())
+        if max_words:
+            vocab_size = max_words
+        i = 0
+        word2id = {}
+        id2word = np.empty(vocab_size, dtype="U12")
+        word_embeddings = np.zeros((vocab_size, vector_size))
+        binary_len = dtype(REAL).itemsize * vector_size
+        for line_no in range(vocab_size):
+            # mixed text and binary: read text first, then binary
+            word = []
+            while True:
+                ch = fin.read(1)
+                if ch == b' ':
+                    break
+                if ch != b'\n':  # ignore newlines in front of words (some binary files have)
+                    word.append(ch)
+            word = b''.join(word).decode('utf-8')
+            weights = fromstring(fin.read(binary_len), dtype=REAL)
+            word2id[word] = i
+            id2word[i] = word
+            word_embeddings[i] = weights
+            i += 1
+    return word2id, id2word, word_embeddings
+
+
+def closest_to_vector(vector, word_embeddings, k=10):
+    # distances = [cosine(vector, vec) for vec in word_embeddings]
+    distances = cdist(vector.reshape((1, vector.shape[0])), word_embeddings, metric='cosine')[0]
+    top_similar = np.argsort(distances)[:k]
+    return top_similar
+
+
+def save_object(obj, obj_path):
+    with open(obj_path, 'wb') as obj_handle:
+        pickle.dump(obj, obj_handle)
+
+
+def load_object(obj_path):
+    with open(obj_path, 'rb') as obj_handle:
+        return pickle.load(obj_handle)
