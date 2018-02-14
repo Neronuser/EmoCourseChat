@@ -1,6 +1,11 @@
 # EmoryChat
 
-Emotional neural conversational model with memory
+Emotional neural conversational system with knowledge for online courses search.
+
+The project is aimed to create a chat-bot that responds with a given emotion and is also capable of online courses recommendation.
+Emotion aspect of the system is done via emotion entity embeddings that are fed to the RNN decoder along with the encoded utterance.
+Course recommendations are implemented as a cosine similarity search through averaged word2vec embeddings of course description words.
+
 
 ## Getting Started
 
@@ -91,7 +96,7 @@ and extract to data/raw/dialogue/reddit_comments_month.
 
 Create utterances via src/data/reddit_comments_extraction.py.
 
-### Installing
+### Installation
 
 Run all cells in notebooks/exploration/1.0-rsh-emotion-data.ipynb to generate a combined dataset with 
 a reduced number of classes.
@@ -103,7 +108,7 @@ emotion dialogue dataset by running src/data/merge_with_labels.py
 
 ## Running the tests
 
-Explain how to run the automated tests for this system
+Tests are in src/tests.
 
 ## Authors
 
@@ -117,3 +122,5 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 * Zhou, Hao, et al. "Emotional Chatting Machine: Emotional Conversation Generation with Internal and External Memory." arXiv preprint arXiv:1704.01074 (2017). [[PDF]](https://arxiv.org/pdf/1704.01074)
 * Ghazvininejad, Marjan, et al. "A Knowledge-Grounded Neural Conversation Model." arXiv preprint arXiv:1702.01932 (2017). [[PDF]](https://arxiv.org/pdf/1702.01932)
+* pytorch-seq2seq [[code]](https://github.com/IBM/pytorch-seq2seq)
+* Angular Chatbot with Dialogflow [[code]](https://github.com/AngularFirebase/59-angular-chatbot-dialogflow)
