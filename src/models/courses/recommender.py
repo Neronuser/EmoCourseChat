@@ -15,8 +15,17 @@ PUNCTUATION_PATTERN = re.compile("[^\w\s]+")
 
 
 class Recommender(object):
+    """Recommend courses by embedding similarity search."""
 
     def __init__(self, save_dir='models/recommender', courses_path='data/processed/grouped_courses.json', w2v_path='/Users/roman/Word2Vec/GoogleNews-vectors-negative300.bin'):
+        """Load, preprocess and precompute word and course vectors. Load vectors if precomputed are available.
+
+        Args:
+            save_dir (str): Directory path to persist precomputed vectors.
+            courses_path (str): Courses json path, grouped by category {category: Course}.
+            w2v_path (str): Google News Word2Vec word embeddings path.
+
+        """
         self.logger = logging.getLogger(APP_NAME + ".Recommender")
         self.logger.info("Loading word2vec embeddings")
         self.word2id, self.id2word, self.word_embeddings = load_word2vec(w2v_path, 1000000)
@@ -53,6 +62,17 @@ class Recommender(object):
             save_object(self.category_embeddings, category_embeddings_path)
 
     def _prepare_courses(self, courses_path):
+        """Extract and encode courses and their categories.
+
+        Args:
+            courses_path (str): Courses json path, grouped by category {category: Course}.
+
+        Returns:
+            {Course: int}, [Course], {str: int}, [str], {int: int}, np.array((n_courses, 300)),
+            np.array((n_categories, 300)): Course->id mapping, id->Course mapping, Category->id mapping,
+            id->Category mapping, course embeddings, category embeddings.
+
+        """
         with open(courses_path) as courses_handle:
             grouped_courses = json.load(courses_handle)
         courses_number = 0
@@ -83,20 +103,40 @@ class Recommender(object):
             np.array(category_embeddings)
 
     def _preprocess_course(self, course):
+        """Extract, join and preprocess all text information about the course: title, short and full description."""
         return self._preprocess_text(" ".join([course.title,
                                                course.short_description if course.short_description else '',
                                                course.text if course.text else '']))
 
     def _preprocess_text(self, text):
+        """Remove punctuation, stopwords and split into a list of words."""
         text_no_punctuation = re.sub(PUNCTUATION_PATTERN, " ", text)
         text_no_punctuation_no_stopwords = [word for word in text_no_punctuation.lower().split(" ") if
                                             word not in self.stopwords]
         return text_no_punctuation_no_stopwords
 
     def _encode_word_list(self, word_list):
+        """Average word vectors from the given list.
+
+        Args:
+            word_list ([str]): List of target words - subsentence/sentence/paragraph.
+
+        Returns:
+            np.array(300): Mean vector of embedded words in the list.
+
+        """
         return np.mean(np.array([self.word_embeddings[self.word2id[word]] for word in word_list if word in self.word2id]), axis=0)
 
     def recommend(self, text):
+        """Return semantically closest course to given text.
+
+        Args:
+            text (str): Arbitrary string, related to the field of learning.
+
+        Returns:
+            Course: Closest course along with title, link and description.
+
+        """
         preprocessed_text = self._preprocess_text(text)
         text_embedding = self._encode_word_list(preprocessed_text)
         closest_category_id = closest_to_vector(text_embedding, self.category_embeddings, 1)[0]

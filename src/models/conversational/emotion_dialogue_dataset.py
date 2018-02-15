@@ -130,6 +130,7 @@ class EmotionDialogueDataset(data.Dataset):
         Returns:
             (Vocabulary, Vocabulary, ([int], [int], int)): Source, target vocabularies,
                 encoded utterance, response and emotion triplets.
+
         """
         vocabulary, emotion_vocabulary, triplets = self.read_data()
         self.logger.info("Read {!s} sentence triplets".format(len(triplets)))
