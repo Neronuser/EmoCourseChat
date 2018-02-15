@@ -1,12 +1,25 @@
 import json
+import logging
 
 import bottle
 from bottle import request, response
 
-from src.models.courses.recommender import Recommender
+from src.app.bot import EmoCourseChat
+from src.models.conversational.utils import APP_NAME
+from src.utils import parse_config, LOG_FORMAT
 
+config = parse_config('app')
+logger = logging.getLogger(APP_NAME)
+logger.setLevel(config['LogLevel'])
+handler = logging.FileHandler(config['LogPath'])
+handler.setLevel(config['LogLevel'])
+formatter = logging.Formatter(LOG_FORMAT)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.info(dict(config.items()))
 app = application = bottle.default_app()
-recommender = Recommender()
+bot = EmoCourseChat(config["Checkpoint"], config["Vocabulary"], config["EmotionVocabulary"], config["Word2Vec"],
+                    config.getint("BeamSize"), config.getfloat("Threshold"))
 
 
 def cors(func):
@@ -29,10 +42,9 @@ def cors(func):
 def utterance_handler():
     data = request.json
     utterance = data["content"]
-
+    text_response = bot.respond(utterance)
     response.headers['Content-Type'] = 'application/json'
-    text_response = recommender.recommend(utterance)
-    return json.dumps({'response': text_response.link})
+    return json.dumps({'response': text_response})
 
 
 if __name__ == '__main__':

@@ -76,10 +76,11 @@ def load_word2vec(w2v_path, max_words=None):
     return word2id, id2word, word_embeddings
 
 
-def closest_to_vector(vector, word_embeddings, k=10):
-    # distances = [cosine(vector, vec) for vec in word_embeddings]
+def closest_to_vector(vector, word_embeddings, k=10, threshold=0.5):
     distances = cdist(vector.reshape((1, vector.shape[0])), word_embeddings, metric='cosine')[0]
     top_similar = np.argsort(distances)[:k]
+    if distances[top_similar[0]] > threshold:
+        return None
     return top_similar
 
 

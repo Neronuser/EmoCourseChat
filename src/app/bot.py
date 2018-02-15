@@ -7,24 +7,27 @@ from src.models.conversational.emotion_model import EmotionSeq2seq, EmotionTopKD
 from src.models.conversational.predictor import Predictor
 from src.models.conversational.utils import APP_NAME
 from src.models.courses.recommender import Recommender
+from src.utils import preprocess
 
 
-class EmoryChatBot(object):
+class EmoCourseChat(object):
 
-    def __init__(self, checkpoint_path, vocabulary_path, emotion_vocabulary_path, beam_size=20):
+    def __init__(self, checkpoint_path, vocabulary_path, emotion_vocabulary_path, word2vec_path, beam_size=20, threshold=0.5):
+        self.threshold = threshold
         self.logger = logging.getLogger(APP_NAME + ".EmoryChatBot")
-        self.recommender = Recommender()
+        self.recommender = Recommender(word2vec_path)
         self.logger.info("Loading checkpoint from {}".format(checkpoint_path))
         vocabulary = torch.load(vocabulary_path)
         emotion_vocabulary = torch.load(emotion_vocabulary_path)
         checkpoint = Checkpoint.load(checkpoint_path)
         seq2seq = checkpoint.model
         beam_search = EmotionSeq2seq(seq2seq.encoder, EmotionTopKDecoder(seq2seq.decoder, beam_size))
-        predictor = Predictor(beam_search, vocabulary, emotion_vocabulary=emotion_vocabulary)
+        self.predictor = Predictor(beam_search, vocabulary, emotion_vocabulary=emotion_vocabulary)
 
-        seq = "how are you ?".split()
-        self.logger.info("Happy: " + " ".join(predictor.predict(seq, 'happiness')))
-        self.logger.info("Angry: " + " ".join(predictor.predict(seq, 'anger')))
-        self.logger.info("Sad: " + " ".join(predictor.predict(seq, 'sadness')))
-        self.logger.info("Neutral: " + " ".join(predictor.predict(seq, 'neutral')))
-        self.logger.info("Love: " + " ".join(predictor.predict(seq, 'love')))
+    def respond(self, text):
+        text, emotion = text.rsplit("#")
+        recommended = self.recommender.recommend(text, threshold=self.threshold)
+        if recommended is None:
+            text = preprocess(text)
+            return " ".join(self.predictor.predict(text.split(), emotion.lower())[:-1])
+        return "Try " + recommended.title + " " + recommended.link

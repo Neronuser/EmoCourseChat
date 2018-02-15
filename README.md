@@ -1,4 +1,4 @@
-# EmoryChat
+# EmoCourseChat
 
 Emotional neural conversational system with knowledge for online courses search.
 

@@ -17,13 +17,13 @@ PUNCTUATION_PATTERN = re.compile("[^\w\s]+")
 class Recommender(object):
     """Recommend courses by embedding similarity search."""
 
-    def __init__(self, save_dir='models/recommender', courses_path='data/processed/grouped_courses.json', w2v_path='/Users/roman/Word2Vec/GoogleNews-vectors-negative300.bin'):
+    def __init__(self, w2v_path, save_dir='models/recommender', courses_path='data/processed/grouped_courses.json'):
         """Load, preprocess and precompute word and course vectors. Load vectors if precomputed are available.
 
         Args:
+            w2v_path (str): Google News Word2Vec word embeddings path.
             save_dir (str): Directory path to persist precomputed vectors.
             courses_path (str): Courses json path, grouped by category {category: Course}.
-            w2v_path (str): Google News Word2Vec word embeddings path.
 
         """
         self.logger = logging.getLogger(APP_NAME + ".Recommender")
@@ -127,20 +127,25 @@ class Recommender(object):
         """
         return np.mean(np.array([self.word_embeddings[self.word2id[word]] for word in word_list if word in self.word2id]), axis=0)
 
-    def recommend(self, text):
+    def recommend(self, text, threshold=0.5):
         """Return semantically closest course to given text.
 
         Args:
             text (str): Arbitrary string, related to the field of learning.
+            threshold (float): Maximum appropriate cosine distance to be considered close.
 
         Returns:
             Course: Closest course along with title, link and description.
+            None: If no courses passed the threshold.
 
         """
         preprocessed_text = self._preprocess_text(text)
         text_embedding = self._encode_word_list(preprocessed_text)
-        closest_category_id = closest_to_vector(text_embedding, self.category_embeddings, 1)[0]
-        category_course_ids = self.category2courses[closest_category_id]
+        closest_category_ids = closest_to_vector(text_embedding, self.category_embeddings, 1, threshold=threshold)
+        if closest_category_ids is None:
+            self.logger.debug(text + ": " + str(threshold))
+            return None
+        category_course_ids = self.category2courses[closest_category_ids[0]]
         category_course_embeddings = self.course_embeddings[category_course_ids]
         closest_course_id = closest_to_vector(text_embedding, category_course_embeddings, 1)[0]
         return self.id2course[category_course_ids[closest_course_id]]
