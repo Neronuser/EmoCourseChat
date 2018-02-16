@@ -69,7 +69,7 @@ def run(config):
             decoder = EmotionDecoderRNN(dataset.vocabulary.n_words, dataset.emotion_vocabulary.n_words, max_length,
                                         embeddings_dim,
                                         emotion_embeddings_dim, hidden_size * 2 if bidirectional else hidden_size,
-                                        dropout_p=0, use_attention=False, bidirectional=bidirectional,
+                                        dropout_p=0, use_attention=True, bidirectional=bidirectional,
                                         eos_id=EOS_INDEX, sos_id=SOS_INDEX, n_layers=n_layers, rnn_cell='lstm')
             seq2seq = EmotionSeq2seq(encoder, decoder)
             if torch.cuda.is_available():
@@ -82,8 +82,8 @@ def run(config):
             # explicitly constructing the objects and pass to the trainer.
             #
             optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters(), lr=learning_rate), max_grad_norm=1)
-            # optimizer = Optimizer(SGD(seq2seq.parameters(), lr=learning_rate, momentum=0.9, weight_decay=0.9),
-            #                       max_grad_norm=5)
+            # optimizer = Optimizer(SGD(seq2seq.parameters(), lr=0.1),
+            #                       max_grad_norm=1)
             # scheduler = StepLR(optimizer.optimizer, 1)
             # optimizer.set_scheduler(scheduler)
 

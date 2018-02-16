@@ -1,4 +1,5 @@
 import logging
+import random
 
 import torch
 
@@ -23,11 +24,21 @@ class EmoCourseChat(object):
         seq2seq = checkpoint.model
         beam_search = EmotionSeq2seq(seq2seq.encoder, EmotionTopKDecoder(seq2seq.decoder, beam_size))
         self.predictor = Predictor(beam_search, vocabulary, emotion_vocabulary=emotion_vocabulary)
+        self.introductions_path = 'data/raw/introductions.txt'
+        self.introductions = self._load_introductions(introductions_path=self.introductions_path)
 
     def respond(self, text):
         text, emotion = text.rsplit("#")
         recommended = self.recommender.recommend(text, threshold=self.threshold)
         if recommended is None:
             text = preprocess(text)
-            return " ".join(self.predictor.predict(text.split(), emotion.lower())[:-1])
-        return "Try " + recommended.title + " " + recommended.link
+            return " ".join(self.predictor.predict(text.split(), emotion.lower())[:-1]).capitalize()
+        return random.choice(self.introductions) + recommended.title + " " + recommended.link
+
+    def _load_introductions(self, introductions_path):
+        introductions = []
+        with open(introductions_path) as introductions_handle:
+            for line in introductions_handle:
+                introductions.append(line + " ")
+        return introductions
+

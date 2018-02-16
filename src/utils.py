@@ -24,6 +24,7 @@ MULTI_SPACES = re.compile(u" +")
 
 
 def preprocess(text):
+    """Neural dialogue dataset preprocessing."""
     new_text = preprocess_text(text, fix_unicode=True, lowercase=True, no_urls=True,
                                no_emails=True, no_phone_numbers=True, no_numbers=True,
                                no_currency_symbols=True, no_contractions=True,
@@ -38,16 +39,19 @@ def preprocess(text):
 
 
 def split_list_pairs(l):
+    """Build pairs of utterances from full dialogue, e.g. A: a, b, c -> (a, b), (b, c)."""
     return [[l[i], l[i + 1]] for i in range(len(l) - 1)]
 
 
 def parse_config(section):
+    """Read given config section."""
     config = configparser.ConfigParser(allow_no_value=True)
     config.read(CONFIG_PATH)
     return config[section]
 
 
 def load_word2vec(w2v_path, max_words=None):
+    """Load Google News Word2Vec embeddings."""
     with open(w2v_path, "rb") as fin:
         header = fin.readline()
         vocab_size, vector_size = map(int, header.split())
@@ -77,6 +81,19 @@ def load_word2vec(w2v_path, max_words=None):
 
 
 def closest_to_vector(vector, word_embeddings, k=10, threshold=0.5):
+    """Get indices of the closes vectors from given embeddings to a given vector.
+
+    Args:
+        vector (np.array(300)): Target vector.
+        word_embeddings (np.array(n_words, 300)): Searched embeddings.
+        k (int): How many closest entity indices to output.
+        threshold (float): Maximum distance to consider vectors close.
+
+    Returns:
+        np.array(k): Indices of the closest entities from word_embeddings.
+        None: If no vectors satisfied the threshold.
+
+    """
     distances = cdist(vector.reshape((1, vector.shape[0])), word_embeddings, metric='cosine')[0]
     top_similar = np.argsort(distances)[:k]
     if distances[top_similar[0]] > threshold:
@@ -85,10 +102,12 @@ def closest_to_vector(vector, word_embeddings, k=10, threshold=0.5):
 
 
 def save_object(obj, obj_path):
+    """Pickle object."""
     with open(obj_path, 'wb') as obj_handle:
         pickle.dump(obj, obj_handle)
 
 
 def load_object(obj_path):
+    """Unpickle object."""
     with open(obj_path, 'rb') as obj_handle:
         return pickle.load(obj_handle)

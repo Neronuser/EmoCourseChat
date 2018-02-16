@@ -123,9 +123,13 @@ class Recommender(object):
 
         Returns:
             np.array(300): Mean vector of embedded words in the list.
+            None: If no embeddings were found for given words.
 
         """
-        return np.mean(np.array([self.word_embeddings[self.word2id[word]] for word in word_list if word in self.word2id]), axis=0)
+        vectors = [self.word_embeddings[self.word2id[word]] for word in word_list if word in self.word2id]
+        if vectors:
+            return np.mean(np.array(vectors), axis=0)
+        return None
 
     def recommend(self, text, threshold=0.5):
         """Return semantically closest course to given text.
@@ -141,6 +145,9 @@ class Recommender(object):
         """
         preprocessed_text = self._preprocess_text(text)
         text_embedding = self._encode_word_list(preprocessed_text)
+        if text_embedding is None:
+            self.logger.debug("Embedding nan for " + text)
+            return None
         closest_category_ids = closest_to_vector(text_embedding, self.category_embeddings, 1, threshold=threshold)
         if closest_category_ids is None:
             self.logger.debug(text + ": " + str(threshold))
