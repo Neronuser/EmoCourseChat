@@ -26,6 +26,7 @@ def run(config):
     save_every = config.getfloat('SaveEvery')
     save_dir = config['SavePath']
     learning_rate = config.getfloat('LearningRate')
+    early_stopping_patience = config.getint('EarlyStoppingPatience')
     n_layers = config.getint('Layer')
     embeddings_dim = config.getint('EmbeddingsDim')
     hidden_size = config.getint('Hidden')
@@ -44,6 +45,7 @@ def run(config):
     logger.info(dict(config.items()))
 
     dataset = EmotionDialogueDataset(train_path, save_dir, max_length, max_words)
+    # train, dev = dataset.split_train_dev(30000)
 
     load_checkpoint = config['LoadCheckpoint']
     if load_checkpoint:
@@ -67,7 +69,7 @@ def run(config):
                                  bidirectional=bidirectional, variable_lengths=True, n_layers=n_layers, rnn_cell='lstm')
             decoder = DecoderRNN(dataset.vocabulary.n_words, max_length, embeddings_dim,
                                  hidden_size * 2 if bidirectional else hidden_size,
-                                 dropout_p=0., use_attention=False, bidirectional=bidirectional,
+                                 dropout_p=0.1, use_attention=False, bidirectional=bidirectional,
                                  eos_id=EOS_INDEX, sos_id=SOS_INDEX, n_layers=n_layers, rnn_cell='lstm')
             seq2seq = Seq2seq(encoder, decoder)
             if torch.cuda.is_available():
@@ -91,10 +93,11 @@ def run(config):
                     print_every=print_every, expt_dir=save_dir)
 
         t.train(seq2seq, dataset,
+                # num_epochs=epochs, dev_data=dev,
                 num_epochs=epochs, dev_data=None,
                 optimizer=optimizer,
                 teacher_forcing_ratio=teacher_forcing,
-                resume=resume)
+                resume=resume, early_stopping_patience=early_stopping_patience)
 
     # beam_search = Seq2seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, beam_size))
     # predictor = Predictor(beam_search, dataset.vocabulary)

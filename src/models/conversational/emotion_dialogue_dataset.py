@@ -2,6 +2,7 @@ import csv
 import logging
 import os
 
+import numpy as np
 import torch
 import torchtext
 from torchtext import data
@@ -50,8 +51,10 @@ class EmotionDialogueDataset(data.Dataset):
 
         fields = [
             (UTTERANCE_FIELD_NAME,
-             EncodedSentenceField(sequential=True, pad_token=PAD_INDEX, include_lengths=True, batch_first=True, use_vocab=False)),
-            (RESPONSE_FIELD_NAME, EncodedSentenceField(sequential=True, pad_token=PAD_INDEX, batch_first=True, use_vocab=False)),
+             EncodedSentenceField(sequential=True, pad_token=PAD_INDEX, include_lengths=True, batch_first=True,
+                                  use_vocab=False)),
+            (RESPONSE_FIELD_NAME,
+             EncodedSentenceField(sequential=True, pad_token=PAD_INDEX, batch_first=True, use_vocab=False)),
             (EMOTION_FIELD_NAME, EncodedSentenceField(sequential=False, use_vocab=False))]
         self.logger.info("Start converting to Examples")
         examples = []
@@ -85,12 +88,14 @@ class EmotionDialogueDataset(data.Dataset):
 
                 prep_utterance = preprocess(utterance)
                 split_utterance = prep_utterance.split(' ')
-                if len(split_utterance) >= self.max_sentence_length:
+                len_utterance = len(split_utterance)
+                if len_utterance >= self.max_sentence_length or len_utterance < 2:
                     continue
 
                 prep_response = preprocess(response)
                 split_response = prep_response.split(' ')
-                if len(split_response) >= self.max_sentence_length:
+                len_response = len(split_response)
+                if len_response >= self.max_sentence_length or len_response < 2:
                     continue
 
                 for word in split_utterance:
@@ -153,3 +158,24 @@ class EmotionDialogueDataset(data.Dataset):
         if self.transform:
             sample = self.transform(sample)
         return sample
+
+    @staticmethod
+    def from_examples(examples, fields, vocabulary, emotion_vocabulary):
+        dataset = data.Dataset(examples, fields)
+        dataset.vocabulary = vocabulary
+        dataset.emotion_vocabulary = emotion_vocabulary
+        return dataset
+
+    def split_train_dev(self, dev_size):
+        np.random.seed(42)
+        dev_inds = set(np.random.randint(len(self.examples), size=dev_size))
+        dev_examples = []
+        train_examples = []
+        for i, example in enumerate(self.examples):
+            if i in dev_inds:
+                dev_examples.append(example)
+            else:
+                train_examples.append(example)
+        return EmotionDialogueDataset.from_examples(train_examples, self.fields, self.vocabulary,
+                                                    self.emotion_vocabulary), \
+               EmotionDialogueDataset.from_examples(dev_examples, self.fields, self.vocabulary, self.emotion_vocabulary)

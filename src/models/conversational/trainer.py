@@ -83,7 +83,7 @@ class Trainer(object):
 
         return loss.get_loss()
 
-    def _train_epochs(self, data, model, n_epochs, start_epoch, start_step, dev_data, teacher_forcing_ratio):
+    def _train_epochs(self, data, model, n_epochs, start_epoch, start_step, dev_data, teacher_forcing_ratio, early_stopping_patience):
         """Run training for `n_epochs` epochs.
 
         Args:
@@ -92,8 +92,9 @@ class Trainer(object):
             n_epochs (int): Number of epochs to run.
             start_epoch (int): Starting epoch number.
             start_step (int): Starting step number.
-            dev_data (Optional[torchtext.Dataset]): Dev dataset.
-            teacher_forcing_ratio (Optional[float]): Teaching forcing ratio.
+            dev_data (torchtext.Dataset): Dev dataset.
+            teacher_forcing_ratio (float): Teaching forcing ratio.
+            early_stopping_patience (int): Number of epochs to tolerate dev loss increase.
 
         """
         print_loss_total = 0  # Reset every print_every
@@ -109,6 +110,8 @@ class Trainer(object):
 
         step = start_step
         step_elapsed = 0
+        previous_dev_loss = 10e6
+        dev_loss_increased_epochs = 0
         for epoch in range(start_epoch, n_epochs + 1):
             self.logger.info("Epoch: %d, Step: %d" % (epoch, step))
 
@@ -142,7 +145,12 @@ class Trainer(object):
                     self.logger.info(log_msg)
                     beam_search = Seq2seq(model.encoder, TopKDecoder(model.decoder, 20))
                     predictor = Predictor(beam_search, data.vocabulary)
-                    seq = "how are you ?".split()
+                    # seq = "how are you ?".split()
+                    seq = "how are you".split()
+                    self.logger.info("Beam")
+                    self.logger.info(predictor.predict(seq))
+                    self.logger.info("Argmax")
+                    predictor = Predictor(model, data.vocabulary)
                     self.logger.info(predictor.predict(seq))
 
                 # Checkpoint
@@ -162,6 +170,18 @@ class Trainer(object):
                 self.optimizer.update(dev_loss)
                 log_msg += ", Dev %s: %.4f, Accuracy: %.4f" % (self.loss.name, dev_loss, accuracy)
                 model.train(mode=True)
+                if dev_loss > previous_dev_loss:
+                    dev_loss_increased_epochs += 1
+                    if dev_loss_increased_epochs == early_stopping_patience:
+                        self.logger.info("EARLY STOPPING")
+                        break
+                else:
+                    previous_dev_loss = dev_loss
+                    dev_loss_increased_epochs = 0
+                    Checkpoint(model=model,
+                               optimizer=self.optimizer,
+                               epoch=epoch, step=step).save(self.expt_dir)
+
             else:
                 self.optimizer.update(epoch_loss_avg)
 
@@ -169,7 +189,7 @@ class Trainer(object):
 
     def train(self, model, data, num_epochs=5,
               resume=False, dev_data=None,
-              optimizer=None, teacher_forcing_ratio=0):
+              optimizer=None, teacher_forcing_ratio=0, early_stopping_patience=5):
         """Run training for a given model.
 
         Args:
@@ -182,6 +202,8 @@ class Trainer(object):
             optimizer (Optional[Optimizer]): Optimizer for training.
                 Defaults to Optimizer(pytorch.optim.Adam, max_grad_norm=5).
             teacher_forcing_ratio (Optional[float]): Teaching forcing ratio. Defaults to 0.
+            early_stopping_patience (Optional[int]): Number of epochs to tolerate dev loss increase. Defaults to 5.
+
         Returns:
             model (seq2seq.models): Trained model.
 
@@ -212,5 +234,5 @@ class Trainer(object):
 
         self._train_epochs(data, model, num_epochs,
                            start_epoch, step, dev_data,
-                           teacher_forcing_ratio)
+                           teacher_forcing_ratio, early_stopping_patience)
         return model

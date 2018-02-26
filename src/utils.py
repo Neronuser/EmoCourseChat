@@ -32,8 +32,10 @@ def preprocess(text):
     no_mentions_text = re.sub(MENTIONS_PATTERN, u"", new_text)
     no_hashtags_text = re.sub(HASHTAGS_PATTERN, u"", no_mentions_text)
     no_emojis_text = re.sub(EMOJI_PATTERN, u"", no_hashtags_text)
+    # separated_punctuation_text = no_emojis_text.translate(
+    #     str.maketrans({key: " {0} ".format(key) for key in string.punctuation}))
     separated_punctuation_text = no_emojis_text.translate(
-        str.maketrans({key: " {0} ".format(key) for key in string.punctuation}))
+        str.maketrans({key: " " for key in string.punctuation}))
     no_multi_spaces_text = re.sub(MULTI_SPACES, u" ", separated_punctuation_text)
     return no_multi_spaces_text.strip()
 

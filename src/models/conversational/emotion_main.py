@@ -26,6 +26,8 @@ def run(config):
     save_every = config.getfloat('SaveEvery')
     save_dir = config['SavePath']
     learning_rate = config.getfloat('LearningRate')
+    teacher_forcing = config.getfloat('TeacherForcingRatio')
+    early_stopping_patience = config.getint('EarlyStoppingPatience')
     n_layers = config.getint('Layer')
     embeddings_dim = config.getint('EmbeddingsDim')
     emotion_embeddings_dim = config.getint('EmotionEmbeddingsDim')
@@ -45,6 +47,8 @@ def run(config):
     logger.info(dict(config.items()))
 
     dataset = EmotionDialogueDataset(train_path, save_dir, max_length, max_words)
+    # train, dev = dataset.split_train_dev(30000)
+    # print(len(train))
 
     load_checkpoint = config['LoadCheckpoint']
     if load_checkpoint:
@@ -69,7 +73,7 @@ def run(config):
             decoder = EmotionDecoderRNN(dataset.vocabulary.n_words, dataset.emotion_vocabulary.n_words, max_length,
                                         embeddings_dim,
                                         emotion_embeddings_dim, hidden_size * 2 if bidirectional else hidden_size,
-                                        dropout_p=0, use_attention=True, bidirectional=bidirectional,
+                                        dropout_p=0.1, use_attention=False, bidirectional=bidirectional,
                                         eos_id=EOS_INDEX, sos_id=SOS_INDEX, n_layers=n_layers, rnn_cell='lstm')
             seq2seq = EmotionSeq2seq(encoder, decoder)
             if torch.cuda.is_available():
@@ -95,12 +99,13 @@ def run(config):
         seq2seq = t.train(seq2seq, dataset,
                           num_epochs=epochs, dev_data=None,
                           optimizer=optimizer,
-                          resume=resume)
+                          resume=resume, teacher_forcing_ratio=teacher_forcing,
+                          early_stopping_patience=early_stopping_patience)
 
     beam_search = EmotionSeq2seq(seq2seq.encoder, EmotionTopKDecoder(seq2seq.decoder, beam_size))
     predictor = Predictor(beam_search, dataset.vocabulary, emotion_vocabulary=dataset.emotion_vocabulary)
 
-    seq = "how are you ?".split()
+    seq = "how are you".split()
     logger.info("Happy: " + " ".join(predictor.predict(seq, 'happiness')))
     logger.info("Angry: " + " ".join(predictor.predict(seq, 'anger')))
     logger.info("Sad: " + " ".join(predictor.predict(seq, 'sadness')))

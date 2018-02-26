@@ -5,13 +5,18 @@ from src.models.conversational.checkpoint import Checkpoint
 from src.models.conversational.emotion_dialogue_dataset import UTTERANCE_FIELD_NAME, RESPONSE_FIELD_NAME, \
     EMOTION_FIELD_NAME
 from src.models.conversational.emotion_model import EmotionSeq2seq, EmotionTopKDecoder
+from src.models.conversational.evaluator import EmotionEvaluator
 from src.models.conversational.predictor import Predictor
 from src.models.conversational.trainer import Trainer
 
 
 class EmotionTrainer(Trainer):
 
-    def train_batch(self, input_variable, input_lengths, target_variable, emotion_variable, model):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.evaluator = EmotionEvaluator(self.loss, self.batch_size)
+
+    def train_batch(self, input_variable, input_lengths, target_variable, emotion_variable, model, teacher_forcing_ratio):
         """Run training for the current batch.
 
         Args:
@@ -20,6 +25,7 @@ class EmotionTrainer(Trainer):
             target_variable (torch.autograd.Variable): Target sequence batch.
             emotion_variable (torch.autograd.Variable): Emotion IDs batch.
             model (seq2seq.models): Model to run training on.
+            teacher_forcing_ratio (Optional[float]): Teaching forcing ratio.
 
         Returns:
             float: Batch loss.
@@ -27,7 +33,7 @@ class EmotionTrainer(Trainer):
         """
         loss = self.loss
         # Forward propagation
-        decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths, target_variable, emotion_variable)
+        decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths, target_variable, emotion_variable, teacher_forcing_ratio=teacher_forcing_ratio)
         # Get loss
         loss.reset()
         for step, step_output in enumerate(decoder_outputs):
@@ -40,7 +46,7 @@ class EmotionTrainer(Trainer):
 
         return loss.get_loss()
 
-    def _train_epochs(self, data, model, n_epochs, start_epoch, start_step, dev_data, teacher_forcing_ratio):
+    def _train_epochs(self, data, model, n_epochs, start_epoch, start_step, dev_data, teacher_forcing_ratio, early_stopping_patience):
         """Run training for `n_epochs` epochs.
 
         Args:
@@ -50,7 +56,8 @@ class EmotionTrainer(Trainer):
             start_epoch (int): Starting epoch number.
             start_step (int): Starting step number.
             dev_data (Optional[torchtext.Dataset]): Dev dataset.
-            teacher_forcing_ratio (Optional[float]): Teaching forcing ratio. Not used here.
+            teacher_forcing_ratio (Optional[float]): Teaching forcing ratio.
+            early_stopping_patience (int): Number of epochs to tolerate dev loss increase.
 
         """
         print_loss_total = 0  # Reset every print_every
@@ -66,6 +73,8 @@ class EmotionTrainer(Trainer):
 
         step = start_step
         step_elapsed = 0
+        previous_dev_loss = 10e6
+        dev_loss_increased_epochs = 0
         for epoch in range(start_epoch, n_epochs + 1):
             self.logger.info("Epoch: %d, Step: %d" % (epoch, step))
 
@@ -84,7 +93,7 @@ class EmotionTrainer(Trainer):
                 emotion_variables = getattr(batch, EMOTION_FIELD_NAME)
 
                 loss = self.train_batch(input_variables, input_lengths.tolist(), target_variables, emotion_variables,
-                                        model)
+                                        model, teacher_forcing_ratio)
 
                 # Record average loss
                 print_loss_total += loss
@@ -100,7 +109,7 @@ class EmotionTrainer(Trainer):
                     self.logger.info(log_msg)
                     beam_search = EmotionSeq2seq(model.encoder, EmotionTopKDecoder(model.decoder, 20))
                     predictor = Predictor(beam_search, data.vocabulary, data.emotion_vocabulary)
-                    seq = "how are you ?".split()
+                    seq = "how are you".split()
                     self.logger.info("Happy: " + " ".join(predictor.predict(seq, 'happiness')))
                     self.logger.info("Angry: " + " ".join(predictor.predict(seq, 'anger')))
 
@@ -121,6 +130,17 @@ class EmotionTrainer(Trainer):
                 self.optimizer.update(dev_loss)
                 log_msg += ", Dev %s: %.4f, Accuracy: %.4f" % (self.loss.name, dev_loss, accuracy)
                 model.train(mode=True)
+                if dev_loss > previous_dev_loss:
+                    dev_loss_increased_epochs += 1
+                    if dev_loss_increased_epochs == early_stopping_patience:
+                        self.logger.info("EARLY STOPPING")
+                        break
+                else:
+                    dev_loss_increased_epochs = 0
+                    previous_dev_loss = dev_loss
+                    Checkpoint(model=model,
+                               optimizer=self.optimizer,
+                               epoch=epoch, step=step).save(self.expt_dir)
             else:
                 self.optimizer.update(epoch_loss_avg)
 

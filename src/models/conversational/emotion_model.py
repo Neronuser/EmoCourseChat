@@ -1,14 +1,17 @@
-from src.models.conversational.model import Seq2seq, BaseRNN, Attention, DecoderRNN, inflate
+import random
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+from src.models.conversational.model import Seq2seq, BaseRNN, Attention, DecoderRNN, inflate
+
 
 class EmotionSeq2seq(Seq2seq):
 
-    def forward(self, input_variable, input_lengths=None, target_variable=None, target_emotion=None):
+    def forward(self, input_variable, input_lengths=None, target_variable=None, target_emotion=None, teacher_forcing_ratio=0.):
         """Seq2seq forward pass.
 
         Args:
@@ -16,6 +19,7 @@ class EmotionSeq2seq(Seq2seq):
             input_lengths (Optional[list(int)]): Lengths of sequences. Defaults to None.
             target_variable (Optional[list]): List of token IDs. Defaults to None.
             target_emotion (Optional[list]): List of emotion IDs. Defaults to None.
+            teacher_forcing_ratio (Optional[float]): Teaching forcing ratio. Defaults to 0.
 
         Returns:
             torch.Tensor(seq_len, batch, vocab_size): Decoding outputs.
@@ -28,7 +32,8 @@ class EmotionSeq2seq(Seq2seq):
                               emotion_inputs=target_emotion,
                               encoder_hidden=encoder_hidden,
                               encoder_outputs=encoder_outputs,
-                              function=self.decode_function)
+                              function=self.decode_function,
+                              teacher_forcing_ratio=teacher_forcing_ratio)
         return result
 
 
@@ -99,7 +104,7 @@ class EmotionDecoderRNN(BaseRNN):
         embedded = self.embedding(input_var)
         embedded = self.input_dropout(embedded)
         embedded_emotion = self.emotion_embedding(input_emotion)
-        embedded = torch.cat((embedded, embedded_emotion.view((batch_size, 1, self.emotion_embeddings_dim))), dim=2)
+        embedded = torch.cat((embedded, embedded_emotion.view((batch_size, 1, self.emotion_embeddings_dim)).expand((batch_size, output_size, self.emotion_embeddings_dim))), dim=2)
 
         output, hidden = self.rnn(embedded, hidden)
 
@@ -107,12 +112,12 @@ class EmotionDecoderRNN(BaseRNN):
         if self.use_attention:
             output, attn = self.attention(output, encoder_outputs)
 
-        predicted_softmax = function(self.out(output.view(-1, self.hidden_size)), dim=1).view(batch_size, output_size,
+        predicted_softmax = function(self.out(output.contiguous().view(-1, self.hidden_size)), dim=1).view(batch_size, output_size,
                                                                                               -1)
         return predicted_softmax, hidden, attn
 
     def forward(self, inputs=None, emotion_inputs=None, encoder_hidden=None, encoder_outputs=None,
-                function=F.log_softmax):
+                function=F.log_softmax, teacher_forcing_ratio=0.):
         """Decoder forward pass.
 
         Args:
@@ -126,6 +131,7 @@ class EmotionDecoderRNN(BaseRNN):
                 for attention mechanism. Defaults to None.
             function (Optional[torch.nn.Module]): Function to generate symbols from RNN hidden state.
                 Defaults to `torch.nn.functional.log_softmax`.
+            teacher_forcing_ratio (Optional[float]): Teaching forcing ratio. Defaults to 0.
 
         Returns:
             torch.Tensor(seq_len, batch, vocab_size): Decoding outputs.
@@ -139,6 +145,8 @@ class EmotionDecoderRNN(BaseRNN):
         inputs, batch_size, max_length = self._validate_args(inputs, encoder_hidden, encoder_outputs,
                                                              function)
         decoder_hidden = self._init_state(encoder_hidden)
+
+        use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
 
         decoder_outputs = []
         sequence_symbols = []
@@ -158,14 +166,27 @@ class EmotionDecoderRNN(BaseRNN):
                 lengths[update_idx] = len(sequence_symbols)
             return symbols
 
-        decoder_input = inputs[:, 0].unsqueeze(1)
-        for di in range(max_length):
-            decoder_output, decoder_hidden, step_attn = self.forward_step(decoder_input, emotion_inputs, decoder_hidden,
-                                                                          encoder_outputs,
-                                                                          function=function)
-            step_output = decoder_output.squeeze(1)
-            symbols = decode(di, step_output, step_attn)
-            decoder_input = symbols
+        if use_teacher_forcing:
+            decoder_input = inputs[:, :-1]
+            decoder_output, decoder_hidden, attn = self.forward_step(decoder_input, emotion_inputs, decoder_hidden, encoder_outputs,
+                                                                     function=function)
+
+            for di in range(decoder_output.size(1)):
+                step_output = decoder_output[:, di, :]
+                if attn is not None:
+                    step_attn = attn[:, di, :]
+                else:
+                    step_attn = None
+                decode(di, step_output, step_attn)
+        else:
+            decoder_input = inputs[:, 0].unsqueeze(1)
+            for di in range(max_length):
+                decoder_output, decoder_hidden, step_attn = self.forward_step(decoder_input, emotion_inputs, decoder_hidden,
+                                                                              encoder_outputs,
+                                                                              function=function)
+                step_output = decoder_output.squeeze(1)
+                symbols = decode(di, step_output, step_attn)
+                decoder_input = symbols
 
         ret_dict[DecoderRNN.KEY_SEQUENCE] = sequence_symbols
         ret_dict[DecoderRNN.KEY_LENGTH] = lengths.tolist()
