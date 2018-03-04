@@ -133,6 +133,8 @@ ssl/
 
 /fastText-0.1.0/
 
+/tsne-viz/
+
 config.ini
 
 notebooks/seq2seq_translation_tutorial.ipynb

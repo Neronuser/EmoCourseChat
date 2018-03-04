@@ -50,6 +50,7 @@ def run(config):
     load_checkpoint = config['LoadCheckpoint']
     if load_checkpoint:
         checkpoint_path = os.path.join(save_dir, Checkpoint.CHECKPOINT_DIR_NAME, load_checkpoint)
+        # checkpoint_path = load_checkpoint
         logger.info("Loading checkpoint from {}".format(checkpoint_path))
         checkpoint = Checkpoint.load(checkpoint_path)
         seq2seq = checkpoint.model
@@ -99,13 +100,13 @@ def run(config):
                 teacher_forcing_ratio=teacher_forcing,
                 resume=resume, early_stopping_patience=early_stopping_patience)
 
-    # beam_search = Seq2seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, beam_size))
-    # predictor = Predictor(beam_search, dataset.vocabulary)
-    #
-    # while True:
-    #     seq_str = input("Type in a source sequence:")
-    #     seq = seq_str.strip().split()
-    #     print(predictor.predict(seq))
+    beam_search = Seq2seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, beam_size))
+    predictor = Predictor(beam_search, dataset.vocabulary)
+
+    while True:
+        seq_str = input("Type in a source sequence:")
+        seq = seq_str.strip().split()
+        print(predictor.predict(seq))
 
 
 if __name__ == '__main__':
